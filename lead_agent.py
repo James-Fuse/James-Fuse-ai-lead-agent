@@ -37,7 +37,7 @@ def sende_email(inhalt):
     msg["Subject"] = "Neue Lead-Ergebnisse gefunden"
     msg.set_content(inhalt)
 
-    smtp_pass = os.environ.get("STRATO_EMAIL_PASSWORD")  # Passwort aus Secret
+    smtp_pass = os.environ.get("EMAIL_PASSWORD")  # Passwort aus Secret
 
     with smtplib.SMTP("smtp.strato.de", 587) as server:
         server.starttls()
