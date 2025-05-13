@@ -36,9 +36,9 @@ def sende_email(inhalt):
     msg["Subject"] = "Neue Lead-Ergebnisse gefunden"
     msg.set_content(inhalt)
 
-    with smtplib.SMTP("smtp.ionos.de", 587) as server:
+    with smtplib.SMTP("smtp.strato.de", 587) as server:
         server.starttls()
-        server.login("info@james-fuse.de", "DEIN-APP-PASSWORT")
+        server.login("info@james-fuse.de", "Roller838!")
         server.send_message(msg)
 
 # === HAUPTAUSFÜHRUNG ===
