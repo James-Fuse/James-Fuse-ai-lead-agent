@@ -4,6 +4,7 @@ import re
 import time
 from email.message import EmailMessage
 import smtplib
+import os
 
 # === KONFIGURATION ===
 SUCHBEGRIFFE = ["KTK fuse", "KTK-R Sicherung", "LP-CC fuse", "FNQ-R fuse", "AJT fuse"]
@@ -24,7 +25,7 @@ def google_suche(begriff):
     for link in soup.find_all("a"):
         href = link.get("href")
         if href and "url?q=" in href:
-            match = re.search(r"url\?q=(https?://[^&]+)", href)
+            match = re.search(r"url\\?q=(https?://[^&]+)", href)
             if match:
                 ergebnisse.append(match.group(1))
     return ergebnisse
@@ -36,9 +37,11 @@ def sende_email(inhalt):
     msg["Subject"] = "Neue Lead-Ergebnisse gefunden"
     msg.set_content(inhalt)
 
+    smtp_pass = os.environ.get("STRATO_EMAIL_PASSWORD")  # Passwort aus Secret
+
     with smtplib.SMTP("smtp.strato.de", 587) as server:
         server.starttls()
-        server.login("info@james-fuse.de", "Roller838!")
+        server.login("info@james-fuse.de", smtp_pass)
         server.send_message(msg)
 
 # === HAUPTAUSFÜHRUNG ===
