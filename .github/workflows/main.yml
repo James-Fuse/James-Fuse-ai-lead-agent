@@ -18,7 +18,7 @@ jobs:
           python-version: '3.10'
 
       - name: Abhängigkeiten installieren
-        run: pip install -r requirements.txt
+        run: pip install -r ./requirements.txt
 
       - name: Lead Agent ausführen
         run: python lead_agent.py
