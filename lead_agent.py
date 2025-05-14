@@ -7,7 +7,9 @@ import smtplib
 import os
 
 # === KONFIGURATION ===
-SUCHBEGRIFFE = ["KTK fuse", "KTK-R Sicherung", "LP-CC fuse", "FNQ-R fuse", "AJT fuse"]
+SUCHBEGRIFFE = ["LPJ fuse", "LP-CC fuse", "FNQ-R fuse", "KTK fuse", "KTK-R fuse",
+    "AJT fuse", "ATQR fuse", "ATDR fuse", "ATM fuse", "ATMR fuse",
+    "TRM15 fuse", "FNM-15 fuse"]
 ZIEL_SEITEN = [
     "https://www.google.com/search?q=",
 ]
