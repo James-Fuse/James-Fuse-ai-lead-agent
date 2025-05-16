@@ -53,15 +53,15 @@ def wlw_suche(begriff):
 # === E-MAIL-VERSAND ===
 def sende_email(inhalt):
     msg = EmailMessage()
-    msg["From"] = "justin_wehrheim@yahoo.de"
+    msg["From"] = "mjmix888@gmail.com"
     msg["To"] = "info@james-fuse.de"
     msg["Subject"] = "Lead-Report: Aktuelle Suchergebnisse"
     msg.set_content(inhalt)
 
     smtp_pass = os.environ.get("EMAIL_PASSWORD")
-    with smtplib.SMTP("smtp.mail.yahoo.com", 587) as server:
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
         server.starttls()
-        server.login("justin_wehrheim@yahoo.de", smtp_pass)
+        server.login("mjmix888@gmail.com", smtp_pass)
         server.send_message(msg)
 
 # === HAUPTAUSFÜHRUNG ===
