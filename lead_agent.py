@@ -58,7 +58,7 @@ def sende_email(inhalt):
     msg["Subject"] = "Lead-Report: Aktuelle Suchergebnisse"
     msg.set_content(inhalt)
 
-    smtp_pass = os.environ.get("EMAIL_PASSWORD")
+    smtp_pass = os.environ.get("Roller838!")
     with smtplib.SMTP("smtp.strato.de", 587) as server:
         server.starttls()
         server.login("info@james-fuse.de", smtp_pass)
