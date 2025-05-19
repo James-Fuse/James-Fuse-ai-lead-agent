@@ -1,63 +1,110 @@
-from duckduckgo_search import ddg
 import requests
 from bs4 import BeautifulSoup
 import re
-import csv
-from datetime import datetime
+import time
+from email.message import EmailMessage
+import smtplib
+import os
 
-# Gesuchte Sicherungstypen
-keywords = [
-    "FNQ-R", "FNM-15", "LP-CC", "LPJ", "KTK", "KTK-R",
-    "ATM fuse", "ATMR fuse", "ATQR fuse", "ATDR fuse", "AJT fuse"
+# === KONFIGURATION ===
+SUCHBEGRIFFE = [
+    "LPJ fuse", "LP-CC fuse", "FNQ-R fuse", "KTK fuse", "KTK-R fuse",
+    "AJT fuse", "ATQR fuse", "ATDR fuse", "ATM fuse", "ATMR fuse",
+    "TRM15 fuse", "FNM-15 fuse",
+    "UL Sicherung", "CSA Sicherung", "CE Sicherung",
+    "Class CC Sicherung", "Class J Sicherung", "zeitverzögerte Sicherung",
+    "Midget fuse kaufen", "Schmelzsicherung Industrie kaufen",
+    "Eaton Bussmann Sicherung gesucht", "Bussmann FNQ-R gesucht",
+    "Suche LP-CC fuse", "FNQ-R 2-1/2 Lieferant",
+    "KTK-R Ersatz", "TRM15 Lieferung Deutschland",
+    "ATQR fuse sourcing", "KTK-R fuse Bedarf", "FNM fuse gebraucht",
+    "FNQ-R gebraucht", "LPJ fuse Industriebedarf",
+    "Sicherung Steuerungssystem kaufen"
 ]
+USER_AGENT = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
-# Zusätzliche Suchphrasen für Käufer/Sucher
-search_phrases = [
-    "kaufen", "beschaffen", "beziehen", "bedarf an", "suchen", "benötigen",
-    "need", "looking for", "purchase", "buy", "procure", "require", "request"
-]
+# === SUCH-FUNKTIONEN ===
+def google_suche(begriff):
+    url = f"https://www.google.com/search?q={requests.utils.quote(begriff)}"
+    response = requests.get(url, headers=USER_AGENT)
+    soup = BeautifulSoup(response.text, "html.parser")
+    links = []
+    for link in soup.find_all("a"):
+        href = link.get("href")
+        if href and "url?q=" in href:
+            match = re.search(r"url\\?q=(https?://[^&]+)", href)
+            if match:
+                links.append(match.group(1))
+    return links
 
-# Funktion: Suchbegriffe kombinieren und suchen
-def search_leads():
-    results = []
-    for keyword in keywords:
-        for phrase in search_phrases:
-            query = f'{keyword} {phrase} site:.de'
-            print(f"🔍 Suche: {query}")
-            try:
-                search_results = ddg(query, max_results=10)
-                if search_results:
-                    for result in search_results:
-                        url = result.get("href") or result.get("url")
-                        title = result.get("title", "")
-                        snippet = result.get("body", "")
-                        if url and "verkauf" not in snippet.lower():
-                            results.append({
-                                "keyword": keyword,
-                                "phrase": phrase,
-                                "title": title,
-                                "snippet": snippet,
-                                "url": url
-                            })
-            except Exception as e:
-                print(f"Fehler bei der Suche: {e}")
-    return results
+def bing_suche(begriff):
+    url = f"https://www.bing.com/search?q={requests.utils.quote(begriff)}"
+    response = requests.get(url, headers=USER_AGENT)
+    soup = BeautifulSoup(response.text, "html.parser")
+    links = []
+    for li in soup.find_all("li", class_="b_algo"):
+        a = li.find("a")
+        if a and a.get("href"):
+            links.append(a["href"])
+    return links
 
-# Funktion: Ergebnisse speichern
-def save_results(results):
-    date = datetime.now().strftime("%Y-%m-%d_%H-%M")
-    filename = f"leads_{date}.csv"
-    with open(filename, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=["keyword", "phrase", "title", "snippet", "url"])
-        writer.writeheader()
-        for row in results:
-            writer.writerow(row)
-    print(f"💾 Ergebnisse gespeichert in {filename}")
+def wlw_suche(begriff):
+    url = f"https://www.wlw.de/de/suche?q={requests.utils.quote(begriff)}"
+    response = requests.get(url, headers=USER_AGENT)
+    soup = BeautifulSoup(response.text, "html.parser")
+    links = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if "/firma/" in href:
+            links.append("https://www.wlw.de" + href)
+    return links
 
-# Hauptprogramm
+# === E-MAIL-VERSAND ===
+def sende_email(inhalt):
+    msg = EmailMessage()
+    msg["From"] = "mjmix888@gmail.com"
+    msg["To"] = "info@james-fuse.de"
+    msg["Subject"] = "Lead-Report: Aktuelle Suchergebnisse"
+    msg.set_content(inhalt)
+
+    smtp_pass = os.environ.get("EMAIL_PASSWORD")
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login("mjmix888@gmail.com", smtp_pass)
+        server.send_message(msg)
+
+# === HAUPTAUSFÜHRUNG ===
+def suche_und_ausgeben():
+    gesamt_ergebnisse = {}
+    for begriff in SUCHBEGRIFFE:
+        print(f"\n🔍 Suche nach: {begriff}")
+        results = []
+
+        google = google_suche(begriff)
+        print(f"Google: {len(google)} Treffer")
+        results += google
+
+        bing = bing_suche(begriff)
+        print(f"Bing: {len(bing)} Treffer")
+        results += bing
+
+        wlw = wlw_suche(begriff)
+        print(f"WLW: {len(wlw)} Treffer")
+        results += wlw
+
+        if results:
+            gesamt_ergebnisse[begriff] = list(set(results))
+
+        time.sleep(1)
+
+    return gesamt_ergebnisse
+
 if __name__ == "__main__":
-    leads = search_leads()
-    if leads:
-        save_results(leads)
+    ergebnisse = suche_und_ausgeben()
+    if ergebnisse:
+        text = ""
+        for begriff, links in ergebnisse.items():
+            text += f"\n🔍 {begriff}\n" + "\n".join(f"➤️ {link}" for link in links) + "\n"
+        sende_email(text)
     else:
-        print("Keine passenden Leads gefunden.")
+        sende_email("❌ Heute wurden keine interessierten Firmen gefunden – Agent aktiv, aber keine echten Leads.")
