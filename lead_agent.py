@@ -1,52 +1,63 @@
 from duckduckgo_search import ddg
 import requests
 from bs4 import BeautifulSoup
+import re
+import csv
+from datetime import datetime
 
-# Sicherungstypen
-fuse_types = ["FNM-15", "FNQ-R", "LP-CC", "LPJ", "KTK", "KTK-R", "ATM", "ATMR", "ATQR", "ATDR", "AJT"]
-
-# Suchphrasen für Käufer
-search_terms = []
-for fuse in fuse_types:
-    search_terms += [
-        f'"wir suchen {fuse} Sicherungen site:.de"',
-        f'"Bedarf an {fuse} Sicherung site:.de"',
-        f'"Anfrage {fuse} Sicherung site:.de"',
-        f'"benötigen {fuse} Sicherung site:.de"',
-        f'"Sicherung {fuse} gesucht site:.de"',
-        f'"Lieferant für {fuse} Sicherungen gesucht site:.de"',
-        f'"Suche nach {fuse} Sicherungen site:.de"',
-        f'"{fuse} Sicherung dringend benötigt site:.de"'
-    ]
-
-# Blacklist: typische Wörter für Verkäufer
-blacklist_keywords = [
-    "verkaufen", "distributor", "lieferant", "shop", "onlineshop", "vertrieb", "händler",
-    "anbieten", "jetzt kaufen", "preis ab", "lagernd", "vorrätig", "zum verkauf", "angebot", "produkte"
+# Gesuchte Sicherungstypen
+keywords = [
+    "FNQ-R", "FNM-15", "LP-CC", "LPJ", "KTK", "KTK-R",
+    "ATM fuse", "ATMR fuse", "ATQR fuse", "ATDR fuse", "AJT fuse"
 ]
 
-def is_potential_buyer(url):
-    try:
-        page = requests.get(url, timeout=5)
-        soup = BeautifulSoup(page.text, "html.parser")
-        content = soup.get_text().lower()
-        return not any(bad in content for bad in blacklist_keywords)
-    except:
-        return False
+# Zusätzliche Suchphrasen für Käufer/Sucher
+search_phrases = [
+    "kaufen", "beschaffen", "beziehen", "bedarf an", "suchen", "benötigen",
+    "need", "looking for", "purchase", "buy", "procure", "require", "request"
+]
 
-found_leads = []
+# Funktion: Suchbegriffe kombinieren und suchen
+def search_leads():
+    results = []
+    for keyword in keywords:
+        for phrase in search_phrases:
+            query = f'{keyword} {phrase} site:.de'
+            print(f"🔍 Suche: {query}")
+            try:
+                search_results = ddg(query, max_results=10)
+                if search_results:
+                    for result in search_results:
+                        url = result.get("href") or result.get("url")
+                        title = result.get("title", "")
+                        snippet = result.get("body", "")
+                        if url and "verkauf" not in snippet.lower():
+                            results.append({
+                                "keyword": keyword,
+                                "phrase": phrase,
+                                "title": title,
+                                "snippet": snippet,
+                                "url": url
+                            })
+            except Exception as e:
+                print(f"Fehler bei der Suche: {e}")
+    return results
 
-# Durchsuche DuckDuckGo für alle Begriffe
-for term in search_terms:
-    print(f"🔎 Suche nach: {term}")
-    results = ddg(term, region='de-de', safesearch='off', max_results=10)
-    if results:
-        for r in results:
-            url = r['href']
-            if is_potential_buyer(url) and url not in found_leads:
-                found_leads.append(url)
+# Funktion: Ergebnisse speichern
+def save_results(results):
+    date = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    filename = f"leads_{date}.csv"
+    with open(filename, mode='w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=["keyword", "phrase", "title", "snippet", "url"])
+        writer.writeheader()
+        for row in results:
+            writer.writerow(row)
+    print(f"💾 Ergebnisse gespeichert in {filename}")
 
-# Ausgabe
-print("\n✅ Gefundene potenzielle Käufer-Seiten:")
-for lead in found_leads:
-    print(lead)
+# Hauptprogramm
+if __name__ == "__main__":
+    leads = search_leads()
+    if leads:
+        save_results(leads)
+    else:
+        print("Keine passenden Leads gefunden.")
