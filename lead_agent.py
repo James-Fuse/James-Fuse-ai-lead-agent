@@ -8,19 +8,23 @@ import os
 
 # === KONFIGURATION ===
 SUCHBEGRIFFE = [
-    "LPJ fuse", "LP-CC fuse", "FNQ-R fuse", "KTK fuse", "KTK-R fuse",
-    "AJT fuse", "ATQR fuse", "ATDR fuse", "ATM fuse", "ATMR fuse",
-    "TRM15 fuse", "FNM-15 fuse",
-    "UL Sicherung", "CSA Sicherung", "CE Sicherung",
-    "Class CC Sicherung", "Class J Sicherung", "zeitverzögerte Sicherung",
-    "Midget fuse kaufen", "Schmelzsicherung Industrie kaufen",
-    "Eaton Bussmann Sicherung gesucht", "Bussmann FNQ-R gesucht",
-    "Suche LP-CC fuse", "FNQ-R 2-1/2 Lieferant",
-    "KTK-R Ersatz", "TRM15 Lieferung Deutschland",
-    "ATQR fuse sourcing", "KTK-R fuse Bedarf", "FNM fuse gebraucht",
-    "FNQ-R gebraucht", "LPJ fuse Industriebedarf",
-    "Sicherung Steuerungssystem kaufen"
+    # Suchintention: Kaufinteresse / Bedarf
+    "FNQ-R-1-1/2 kaufen", "FNQ-R-2-1/2 gesucht", "FNQ-R-4 Bedarf", "LP-CC-5 Anfrage",
+    "FNM-15 benötigt", "Industriesicherung Anfrage", "Class CC Sicherung gesucht",
+    "UL Sicherung bestellen", "Bussmann Sicherung gesucht", "Sicherung für Schaltschrank kaufen",
+    "KTK-R benötigt", "KTK Sicherung kaufen", "Midget Fuse gesucht", "Ersatz für FNQ-R-1-1/2",
+    "Sicherung für Steuerung benötigt", "Sicherung Maschinenbau kaufen",
+    "Zeitverzögerte Sicherung gesucht", "Sicherung Steuerungstechnik Bedarf",
+    "Angebot FNQ-R Sicherungen", "Bezugsquelle Bussmann Sicherungen",
+    "Suche Sicherung FNQ-R", "Suche Class CC Sicherung", "FNQ-R Preis gesucht",
+    "Bussmann FNQ-R Lieferant gesucht", "Suche FNM-15 mit CE", "UL/CSA Sicherung Anfrage",
+    "Wer liefert FNQ-R", "Eaton Sicherung dringend gesucht", "Sicherung kaufen Industriebedarf",
+    "Sicherungsbedarf Schaltschrank", "Einkauf FNQ-R gesucht", "FNQ-R Bedarf kurzfristig",
+    "Lieferung Sicherung dringend", "Sicherungen gesucht für Steuerung",
+    "FNQ-R Angebot gewünscht", "Anfrage Industrie-Sicherungen", "Einkäufer sucht Sicherungen",
+    "Nachfrage FNQ-R Fuse", "Bezugsquelle LP-CC-5 Sicherung"
 ]
+
 USER_AGENT = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
 # === SUCH-FUNKTIONEN ===
@@ -31,8 +35,8 @@ def google_suche(begriff):
     links = []
     for link in soup.find_all("a"):
         href = link.get("href")
-        if href and "url?q=" in href:
-            match = re.search(r"url\\?q=(https?://[^&]+)", href)
+        if href and "url?q=" in href and not any(block in href for block in ["amazon", "ebay", "rexel", "mcmaster", "newark", "eaton", "wlw.de/firma", "facebook", "youtube"]):
+            match = re.search(r"url\?q=(https?://[^&]+)", href)
             if match:
                 links.append(match.group(1))
     return links
@@ -45,7 +49,9 @@ def bing_suche(begriff):
     for li in soup.find_all("li", class_="b_algo"):
         a = li.find("a")
         if a and a.get("href"):
-            links.append(a["href"])
+            href = a["href"]
+            if not any(block in href for block in ["amazon", "ebay", "rexel", "mcmaster", "newark", "eaton", "wlw.de/firma", "facebook", "youtube"]):
+                links.append(href)
     return links
 
 def wlw_suche(begriff):
@@ -55,7 +61,7 @@ def wlw_suche(begriff):
     links = []
     for a in soup.find_all("a", href=True):
         href = a["href"]
-        if "/firma/" in href:
+        if "/firma/" in href and not "james-fuse" in href:
             links.append("https://www.wlw.de" + href)
     return links
 
@@ -64,7 +70,7 @@ def sende_email(inhalt):
     msg = EmailMessage()
     msg["From"] = "mjmix888@gmail.com"
     msg["To"] = "info@james-fuse.de"
-    msg["Subject"] = "Lead-Report: Aktuelle Suchergebnisse"
+    msg["Subject"] = "Lead-Report: Aktuelle Interessenten"
     msg.set_content(inhalt)
 
     smtp_pass = os.environ.get("EMAIL_PASSWORD")
@@ -75,36 +81,4 @@ def sende_email(inhalt):
 
 # === HAUPTAUSFÜHRUNG ===
 def suche_und_ausgeben():
-    gesamt_ergebnisse = {}
-    for begriff in SUCHBEGRIFFE:
-        print(f"\n🔍 Suche nach: {begriff}")
-        results = []
-
-        google = google_suche(begriff)
-        print(f"Google: {len(google)} Treffer")
-        results += google
-
-        bing = bing_suche(begriff)
-        print(f"Bing: {len(bing)} Treffer")
-        results += bing
-
-        wlw = wlw_suche(begriff)
-        print(f"WLW: {len(wlw)} Treffer")
-        results += wlw
-
-        if results:
-            gesamt_ergebnisse[begriff] = list(set(results))
-
-        time.sleep(1)
-
-    return gesamt_ergebnisse
-
-if __name__ == "__main__":
-    ergebnisse = suche_und_ausgeben()
-    if ergebnisse:
-        text = ""
-        for begriff, links in ergebnisse.items():
-            text += f"\n🔍 {begriff}\n" + "\n".join(f"➤️ {link}" for link in links) + "\n"
-        sende_email(text)
-    else:
-        sende_email("❌ Heute wurden keine interessierten Firmen gefunden – Agent aktiv, aber keine echten Leads.")
+    gesamt_er_
