@@ -2,7 +2,7 @@ name: Lead-Suche
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # alle 3 Stunden
+    - cron: '0 */2 * * *'  # alle 2 Stunden
   workflow_dispatch:
 
 jobs:
