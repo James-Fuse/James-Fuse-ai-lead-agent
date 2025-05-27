@@ -7,30 +7,29 @@ import smtplib
 import os
 import json
 
+# === KONFIGURATION ===
 SUCHBEGRIFFE = [
     "Sicherung kaufen", "Class CC Sicherung gesucht", "Sicherung gesucht Steuerung",
     "Industriesicherung Bedarf", "Maschinenbauer Sicherungen", "Schaltanlagen Ersatzteile",
     "Sicherungslieferant gesucht", "Elektriker Sicherung Bedarf", "CSA Sicherung bestellen",
     "UL Sicherung Ersatz", "Lieferant elektrische Sicherungen", "Sicherung defekt Austausch"
 ]
-
 USER_AGENT = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+BEKANNTE_DATEI = "bekannte_links.json"
+MAX_LEADS = 10
 
-ARCHIV_DATEI = "versendete_leads.json"
+# === DATEI LADEN UND SPEICHERN ===
+def lade_bekannte_links():
+    if os.path.exists(BEKANNTE_DATEI):
+        with open(BEKANNTE_DATEI, "r") as f:
+            return set(json.load(f))
+    return set()
 
-def google_suche(begriff):
-    url = f"https://www.google.com/search?q={requests.utils.quote(begriff)}"
-    response = requests.get(url, headers=USER_AGENT)
-    soup = BeautifulSoup(response.text, "html.parser")
-    links = []
-    for link in soup.find_all("a"):
-        href = link.get("href")
-        if href and "url?q=" in href:
-            match = re.search(r"url\\?q=(https?://[^&]+)", href)
-            if match:
-                links.append(match.group(1))
-    return links
+def speichere_bekannte_links(links):
+    with open(BEKANNTE_DATEI, "w") as f:
+        json.dump(list(links), f)
 
+# === WLW-SUCHE ===
 def wlw_suche(begriff):
     url = f"https://www.wlw.de/de/suche?q={requests.utils.quote(begriff)}"
     response = requests.get(url, headers=USER_AGENT)
@@ -42,22 +41,13 @@ def wlw_suche(begriff):
             links.append("https://www.wlw.de" + href)
     return links
 
-def lade_bekannte_links():
-    if os.path.exists(ARCHIV_DATEI):
-        with open(ARCHIV_DATEI, "r") as f:
-            return set(json.load(f))
-    return set()
-
-def speichere_bekannte_links(link_set):
-    with open(ARCHIV_DATEI, "w") as f:
-        json.dump(list(link_set), f)
-
-def sende_email(text):
+# === E-MAIL-VERSAND ===
+def sende_email(inhalt):
     msg = EmailMessage()
     msg["From"] = "mjmix888@gmail.com"
     msg["To"] = "info@james-fuse.de"
-    msg["Subject"] = "🎯 Neue Leads aus der aktuellen Suche"
-    msg.set_content(text)
+    msg["Subject"] = "Lead-Report: Neue potenzielle Kunden"
+    msg.set_content(inhalt)
 
     smtp_pass = os.environ.get("EMAIL_PASSWORD")
     with smtplib.SMTP("smtp.gmail.com", 587) as server:
@@ -65,36 +55,31 @@ def sende_email(text):
         server.login("mjmix888@gmail.com", smtp_pass)
         server.send_message(msg)
 
-def suche_leads():
+# === HAUPTAUSFÜHRUNG ===
+def suche_und_filter():
     bekannte_links = lade_bekannte_links()
     neue_links = set()
-    ergebnisse = {}
+    ausgabe = ""
 
     for begriff in SUCHBEGRIFFE:
-        print(f"🔍 Suche: {begriff}")
-        links = wlw_suche(begriff) + google_suche(begriff)
-        links = [link for link in links if link not in bekannte_links]
-        if links:
-            unique = list(dict.fromkeys(links))  # Duplikate entfernen
-            ergebnisse[begriff] = unique[:3]  # Nur 3 pro Begriff nehmen
-            neue_links.update(ergebnisse[begriff])
+        print(f"\n🔍 Suche: {begriff}")
+        links = wlw_suche(begriff)
+        ungefiltert = [l for l in links if l not in bekannte_links and not l.startswith("https://www.wlw.de/de/firma/james-fuse")]
+
+        if ungefiltert:
+            neue_links.update(ungefiltert)
+            ausgabe += f"\n🔍 {begriff}\n"
+            for link in ungefiltert[:MAX_LEADS]:
+                ausgabe += f"➡️ {link}\n"
+
         time.sleep(1)
 
-    return ergebnisse, bekannte_links, neue_links
+    speichere_bekannte_links(bekannte_links.union(neue_links))
+
+    if ausgabe.strip():
+        sende_email(ausgabe)
+    else:
+        sende_email("❌ Es wurden keine neuen potenziellen Kunden gefunden.")
 
 if __name__ == "__main__":
-    ergebnisse, bekannte_links, neue_links = suche_leads()
-    if neue_links:
-        text = ""
-        anzahl = 0
-        for begriff, links in ergebnisse.items():
-            if anzahl >= 10:
-                break
-            beitrag = f"\n🔍 {begriff}\n" + "\n".join(f"➡️ {link}" for link in links)
-            text += beitrag + "\n"
-            anzahl += len(links)
-        sende_email(text)
-        bekannte_links.update(new_links)
-        speichere_bekannte_links(bekannte_links)
-    else:
-        sende_email("❌ Keine neuen Leads gefunden – Agent aktiv, aber keine neuen Ergebnisse.")
+    suche_und_filter()
