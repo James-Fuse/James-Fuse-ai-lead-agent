@@ -1,13 +1,12 @@
-import json
 import os
+import json
 import smtplib
-from email.mime.multipart import MIMEMultipart
+from serpapi import GoogleSearch
 from email.mime.text import MIMEText
 from datetime import datetime
-from serpapi import GoogleSearch
 
-# Stichworte definieren
-suche_keywords = [
+# Suchbegriffe
+suchbegriffe = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
     "Sicherung gesucht Steuerung",
@@ -22,71 +21,61 @@ suche_keywords = [
     "Sicherung defekt Austausch"
 ]
 
-# API-Key von SerpAPI (Google Suche)
-SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
+# Pfad zur Datei mit gespeicherten Links
+dateipfad = "gesendete_links.json"
 
-# Lead-Historie
-CACHE_DATEI = "versendete_leads.json"
-if os.path.exists(CACHE_DATEI):
-    with open(CACHE_DATEI, "r") as f:
+# Gesendete Links laden oder leere Liste erstellen
+if os.path.exists(dateipfad):
+    with open(dateipfad, "r") as f:
         bekannte_links = set(json.load(f))
 else:
     bekannte_links = set()
 
-neue_gesamt = []
+neue_links = []
+serpapi_key = os.getenv("SERPAPI_API_KEY")  # API-Schlüssel aus GitHub Secrets
 
-# Durchsuche jede Anfrage
-for keyword in suche_keywords:
+for begriff in suchbegriffe:
+    print(f"🔍 Suche: {begriff}")
     params = {
         "engine": "google",
-        "q": keyword,
-        "location": "Germany",
+        "q": begriff,
         "hl": "de",
-        "api_key": SERPAPI_API_KEY,
-        "num": 10
+        "gl": "de",
+        "num": "20",
+        "api_key": serpapi_key
     }
-    suche = GoogleSearch(params)
-    ergebnisse = suche.get_dict()
+    search = GoogleSearch(params)
+    results = search.get_dict()
 
-    neue_links = []
-    for ergebnis in ergebnisse.get("organic_results", []):
-        link = ergebnis.get("link")
-        if link and link not in bekannte_links:
-            neue_links.append(link)
+    if "organic_results" in results:
+        for result in results["organic_results"]:
+            link = result.get("link", "")
+            if link and link not in bekannte_links:
+                neue_links.append(f"{link}")
+                bekannte_links.add(link)
 
-    neue_links = neue_links[:10]  # Begrenze auf max. 10
-    if neue_links:
-        neue_gesamt.append(f"\n\U0001F50D {keyword}")
-        neue_gesamt.extend([f"➔ {l}" for l in neue_links])
-        bekannte_links.update(neue_links)
+# Nur maximal 10 neue Links pro Lauf senden
+max_links = neue_links[:10]
 
-# Ergebnisse speichern
-with open(CACHE_DATEI, "w") as f:
-    json.dump(list(bekannte_links), f)
+if max_links:
+    # E-Mail vorbereiten
+    inhalt = "Neue Leads gefunden:\n\n" + "\n".join(max_links)
+    msg = MIMEText(inhalt)
+    msg["Subject"] = f"Neue Leads ({datetime.now().strftime('%Y-%m-%d %H:%M')})"
+    msg["From"] = "lead-agent@james-fuse.de"
+    msg["To"] = "info@james-fuse.de"
 
-# E-Mail senden
-def sende_email(text):
-    absender = "info@james-fuse.de"
-    empfaenger = "info@james-fuse.de"
-    betreff = "Neue potenzielle Kunden (max 10 Leads pro Suche)"
-
-    msg = MIMEMultipart()
-    msg["From"] = absender
-    msg["To"] = empfaenger
-    msg["Subject"] = betreff
-
-    msg.attach(MIMEText(text, "plain"))
-
+    # E-Mail senden
     server = smtplib.SMTP("smtp.ionos.de", 587)
     server.starttls()
-    server.login(absender, os.getenv("EMAIL_PASSWORD"))
+    server.login("lead-agent@james-fuse.de", os.getenv("EMAIL_PASSWORD"))
     server.send_message(msg)
     server.quit()
 
-# Wenn neue Leads vorhanden, E-Mail senden
-if neue_gesamt:
-    inhalt = "\n".join(neue_gesamt)
+    print("✅ E-Mail mit neuen Leads gesendet.")
 else:
-    inhalt = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\nKeine neuen Leads gefunden."
+    print("ℹ️ Keine neuen Leads gefunden.")
 
-sende_email(inhalt)
+# Gesendete Links speichern
+with open(dateipfad, "w") as f:
+    json.dump(list(bekannte_links), f)
