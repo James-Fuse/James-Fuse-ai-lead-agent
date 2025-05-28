@@ -1,9 +1,11 @@
 import os
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from serpapi import GoogleSearch
 
-# Stichworte definieren
-stichwoerter = [
+# Suchbegriffe
+suchbegriffe = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
     "Sicherung gesucht Steuerung",
@@ -18,34 +20,68 @@ stichwoerter = [
     "Sicherung defekt Austausch"
 ]
 
-# Dummy-Suche – simuliert echte Treffer
-def suche_leads(keyword):
-    # Hier kannst du deine eigene Suchlogik einfügen (z. B. Webscraping, API etc.)
-    if keyword in ["Sicherung kaufen", "Class CC Sicherung gesucht"]:
-        return [f"{keyword}:\n➡️ https://www.example.com/{keyword.replace(' ', '-')}/"]
-    return []
+# Ergebnisse speichern
+neue_links = set()
+bekannte_links_path = "bekannte_links.txt"
 
-# Hauptlogik
-leads = []
-for wort in stichwoerter:
-    print(f"🔍 Suche: {wort}")
-    resultate = suche_leads(wort)
-    leads.extend(resultate)
-
-# Immer E-Mail senden, auch wenn keine Leads
-if leads:
-    body = "Hier sind deine neuen Leads:\n\n" + "\n\n".join(leads)
+# Lade bekannte Links
+if os.path.exists(bekannte_links_path):
+    with open(bekannte_links_path, "r") as file:
+        bekannte_links = set(file.read().splitlines())
 else:
-    body = "Diesmal wurden leider keine neuen Leads gefunden."
+    bekannte_links = set()
 
-msg = MIMEText(body)
-msg["Subject"] = "Lead-Agent – neue Ergebnisse"
-msg["From"] = "lead-agent@james-fuse.de"
-msg["To"] = "info@james-fuse.de"
+# SerpAPI Key (aus Umgebungsvariable)
+SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
-# SMTP-Versand
-server = smtplib.SMTP("smtp.ionos.de", 587)
-server.starttls()
-server.login("lead-agent@james-fuse.de", os.getenv("EMAIL_PASSWORD"))
-server.sendmail(msg["From"], msg["To"], msg.as_string())
-server.quit()
+# Ergebnisse suchen
+for begriff in suchbegriffe:
+    print(f"🔍 Suche: {begriff}")
+    params = {
+        "q": begriff,
+        "location": "Germany",
+        "hl": "de",
+        "gl": "de",
+        "api_key": SERPAPI_KEY,
+        "engine": "google",
+        "num": "20"
+    }
+
+    search = GoogleSearch(params)
+    results = search.get_dict()
+    if "organic_results" in results:
+        for result in results["organic_results"]:
+            link = result.get("link")
+            if link and link not in bekannte_links:
+                neue_links.add(link)
+
+# E-Mail versenden (wenn neue Links vorhanden)
+if neue_links:
+    email_sender = "lead-agent@james-fuse.de"
+    email_receiver = "info@james-fuse.de"
+    email_password = os.getenv("EMAIL_PASSWORD")
+
+    subject = "Neue Leads für Sicherungen gefunden"
+    body = "Hier sind neue potenzielle Kunden:
+\n\n" + "\n".join(list(neue_links)[:10])
+
+    msg = MIMEMultipart()
+    msg["From"] = email_sender
+    msg["To"] = email_receiver
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.strato.de", 465) as server:
+            server.login(email_sender, email_password)
+            server.sendmail(email_sender, email_receiver, msg.as_string())
+            print("📧 E-Mail erfolgreich gesendet!")
+    except smtplib.SMTPAuthenticationError:
+        print("❌ Fehler: E-Mail-Zugangsdaten sind ungültig.")
+else:
+    print("ℹ️ Keine neuen Leads gefunden.")
+
+# Neue Links zur Liste hinzufügen
+bekannte_links.update(neue_links)
+with open(bekannte_links_path, "w") as file:
+    file.write("\n".join(bekannte_links))
