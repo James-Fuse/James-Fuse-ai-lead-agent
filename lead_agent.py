@@ -1,85 +1,39 @@
 import os
-import json
 import smtplib
-import time
-import requests
 from email.mime.text import MIMEText
-from bs4 import BeautifulSoup
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
-suchbegriffe = [
-    "Sicherung kaufen",
-    "Class CC Sicherung gesucht",
-    "Sicherung gesucht Steuerung",
-    "Industriesicherung Bedarf",
-    "Maschinenbauer Sicherungen",
-    "Schaltanlagen Ersatzteile",
-    "Sicherungslieferant gesucht",
-    "Elektriker Sicherung Bedarf",
-    "CSA Sicherung bestellen",
-    "UL Sicherung Ersatz",
-    "Lieferant elektrische Sicherungen",
-    "Sicherung defekt Austausch"
+# Konfiguration
+SMTP_SERVER = 'smtp.ionos.de'
+SMTP_PORT = 587
+EMAIL_SENDER = 'lead-agent@james-fuse.de'
+EMAIL_RECEIVER = 'info@james-fuse.de'
+EMAIL_SUBJECT = 'Neue potenzielle Leads (James Fuse Lead Agent)'
+
+# Dummy-Links als Beispiel (normalerweise durch die Suche generiert)
+neue_leads = [
+    'https://www.wlw.de/de/firma/fronius-schweiz-ag-100136',
+    'https://www.wlw.de/de/firma/dosen-zentrale-zuechner-gmbh-395576',
+    'https://www.wlw.de/de/firma/wurster-druck-verpackung-gmbh-1152358'
 ]
 
-dateipfad = "gesendete_links.json"
+# Email-Inhalt erstellen
+body = '🔍 Neue potenzielle Leads gefunden (Stand: {})\n\n'.format(datetime.now().strftime('%d.%m.%Y %H:%M'))
+for link in neue_leads:
+    body += f'➡️ {link}\n'
 
-# Vorherige Links laden
-if os.path.exists(dateipfad):
-    with open(dateipfad, "r") as f:
-        bekannte_links = set(json.load(f))
-else:
-    bekannte_links = set()
+msg = MIMEMultipart()
+msg['From'] = EMAIL_SENDER
+msg['To'] = EMAIL_RECEIVER
+msg['Subject'] = EMAIL_SUBJECT
+msg.attach(MIMEText(body, 'plain'))
 
-neue_links = []
-
-headers = {
-    "User-Agent": "Mozilla/5.0"
-}
-
-def bing_search(query):
-    url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    results = []
-    for li in soup.select(".b_algo h2 a"):
-        href = li.get("href")
-        if href and href not in bekannte_links:
-            results.append(href)
-    return results
-
-for begriff in suchbegriffe:
-    print(f"🔍 Suche: {begriff}")
-    treffer = bing_search(begriff)
-    for link in treffer:
-        if len(neue_links) >= 10:
-            break
-        neue_links.append(link)
-        bekannte_links.add(link)
-    time.sleep(2)  # kurze Pause für stabile Abfragen
-
-# Max. 10 neue Leads pro Durchlauf
-max_links = neue_links[:10]
-
-if max_links:
-    inhalt = "Neue Leads gefunden:\n\n" + "\n".join(max_links)
-else:
-    inhalt = "Keine neuen Leads gefunden – alles ist auf dem aktuellen Stand."
-
-# E-Mail senden
-msg = MIMEText(inhalt)
-msg["Subject"] = f"Leads Update – {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-msg["From"] = "lead-agent@james-fuse.de"
-msg["To"] = "info@james-fuse.de"
-
-server = smtplib.SMTP("smtp.ionos.de", 587)
-server.starttls()
-server.login("lead-agent@james-fuse.de", os.getenv("EMAIL_PASSWORD"))
-server.send_message(msg)
-server.quit()
-
-print("✅ E-Mail versendet.")
-
-# Neue Links speichern
-with open(dateipfad, "w") as f:
-    json.dump(list(bekannte_links), f)
+try:
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls()
+        server.login(EMAIL_SENDER, os.getenv("EMAIL_PASSWORD"))
+        server.sendmail(EMAIL_SENDER, EMAIL_RECEIVER, msg.as_string())
+        print("✅ E-Mail erfolgreich gesendet.")
+except Exception as e:
+    print("❌ Fehler beim Senden der E-Mail:", e)
