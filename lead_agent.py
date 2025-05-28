@@ -1,11 +1,18 @@
 import os
 import json
 import smtplib
-from serpapi import GoogleSearch
+import subprocess
 from email.mime.text import MIMEText
 from datetime import datetime
 
-# Suchbegriffe
+# SerpAPI dynamisch installieren, falls nicht vorhanden
+try:
+    from serpapi import GoogleSearch
+except ModuleNotFoundError:
+    subprocess.check_call(["pip", "install", "serpapi"])
+    from serpapi import GoogleSearch
+
+# Liste der Suchbegriffe
 suchbegriffe = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
@@ -21,10 +28,10 @@ suchbegriffe = [
     "Sicherung defekt Austausch"
 ]
 
-# Pfad zur Datei mit gespeicherten Links
+# Datei zur Speicherung bereits gesendeter Links
 dateipfad = "gesendete_links.json"
 
-# Gesendete Links laden oder leere Liste erstellen
+# Alte Links laden
 if os.path.exists(dateipfad):
     with open(dateipfad, "r") as f:
         bekannte_links = set(json.load(f))
@@ -32,7 +39,7 @@ else:
     bekannte_links = set()
 
 neue_links = []
-serpapi_key = os.getenv("SERPAPI_API_KEY")  # API-Schlüssel aus GitHub Secrets
+serpapi_key = os.getenv("SERPAPI_API_KEY")
 
 for begriff in suchbegriffe:
     print(f"🔍 Suche: {begriff}")
@@ -54,27 +61,28 @@ for begriff in suchbegriffe:
                 neue_links.append(f"{link}")
                 bekannte_links.add(link)
 
-# Nur maximal 10 neue Links pro Lauf senden
+# Maximal 10 neue Leads pro Durchlauf
 max_links = neue_links[:10]
 
 if max_links:
     # E-Mail vorbereiten
     inhalt = "Neue Leads gefunden:\n\n" + "\n".join(max_links)
-    msg = MIMEText(inhalt)
-    msg["Subject"] = f"Neue Leads ({datetime.now().strftime('%Y-%m-%d %H:%M')})"
-    msg["From"] = "lead-agent@james-fuse.de"
-    msg["To"] = "info@james-fuse.de"
-
-    # E-Mail senden
-    server = smtplib.SMTP("smtp.ionos.de", 587)
-    server.starttls()
-    server.login("lead-agent@james-fuse.de", os.getenv("EMAIL_PASSWORD"))
-    server.send_message(msg)
-    server.quit()
-
-    print("✅ E-Mail mit neuen Leads gesendet.")
 else:
-    print("ℹ️ Keine neuen Leads gefunden.")
+    inhalt = "Keine neuen Leads gefunden – alles ist auf dem aktuellen Stand."
+
+msg = MIMEText(inhalt)
+msg["Subject"] = f"Leads Update – {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+msg["From"] = "lead-agent@james-fuse.de"
+msg["To"] = "info@james-fuse.de"
+
+# E-Mail senden
+server = smtplib.SMTP("smtp.ionos.de", 587)
+server.starttls()
+server.login("lead-agent@james-fuse.de", os.getenv("EMAIL_PASSWORD"))
+server.send_message(msg)
+server.quit()
+
+print("✅ E-Mail versendet.")
 
 # Gesendete Links speichern
 with open(dateipfad, "w") as f:
