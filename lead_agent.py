@@ -1,23 +1,11 @@
 import os
 import smtplib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from serpapi import GoogleSearch
-from datetime import datetime
-import json
 
-# SerpAPI key aus Umgebungsvariable holen
-SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
-
-# Bisherige Leads speichern/laden
-leads_datei = "bekannte_leads.json"
-if os.path.exists(leads_datei):
-    with open(leads_datei, "r") as f:
-        bekannte_links = set(json.load(f))
-else:
-    bekannte_links = set()
-
-# Suchbegriffe
-suchbegriffe = [
+# Keywords
+keywords = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
     "Sicherung gesucht Steuerung",
@@ -32,52 +20,75 @@ suchbegriffe = [
     "Sicherung defekt Austausch"
 ]
 
-neue_links = []
+# SerpAPI Key aus Umgebungsvariable
+serpapi_key = os.getenv("SERPAPI_KEY")
+if not serpapi_key:
+    raise Exception("SERPAPI_KEY Umgebungsvariable nicht gesetzt")
 
-# Google-Suche durchführen
-for begriff in suchbegriffe:
-    print(f"🔍 Suche: {begriff}")
+# Gesehene Links lokal speichern, um Dopplungen zu vermeiden
+seen_links_file = "seen_links.txt"
+if not os.path.exists(seen_links_file):
+    open(seen_links_file, 'w').close()
+
+with open(seen_links_file, "r") as f:
+    seen_links = set(line.strip() for line in f.readlines())
+
+new_links = []
+
+# Suche starten
+for keyword in keywords:
+    print(f"🔍 Suche: {keyword}")
     params = {
-        "q": begriff,
+        "q": keyword,
         "location": "Germany",
         "hl": "de",
         "gl": "de",
-        "api_key": SERPAPI_API_KEY,
-        "engine": "google"
+        "api_key": serpapi_key,
+        "num": 20
     }
+
     search = GoogleSearch(params)
     results = search.get_dict()
+
     if "organic_results" in results:
         for result in results["organic_results"]:
             link = result.get("link")
-            if link and link not in bekannte_links:
-                neue_links.append(link)
-                bekannte_links.add(link)
-            if len(neue_links) >= 10:
-                break
-    if len(neue_links) >= 10:
-        break
+            if link and link not in seen_links:
+                new_links.append((keyword, link))
+                seen_links.add(link)
 
-# Nur wenn neue Leads gefunden wurden
-if neue_links:
-    with open(leads_datei, "w") as f:
-        json.dump(list(bekannte_links), f)
+# E-Mail vorbereiten
+if new_links:
+    body = "Hier sind neue potenzielle Kunden:\n"
+    grouped = {}
+    for keyword, link in new_links:
+        if keyword not in grouped:
+            grouped[keyword] = []
+        grouped[keyword].append(link)
 
-    # E-Mail senden
-    absender = "lead-agent@james-fuse.de"
-    empfaenger = "info@james-fuse.de"
-    betreff = "Neue potenzielle Kunden für Sicherungen"
-    body = "Hier sind neue potenzielle Kunden:\n\n" + "\n".join(f"- {link}" for link in neue_links)
+    for keyword, links in grouped.items():
+        body += f"\n🔍 {keyword}\n"
+        for link in links[:3]:  # max. 3 pro Kategorie
+            body += f"➡️ {link}\n"
 
-    msg = MIMEText(body)
-    msg["Subject"] = betreff
-    msg["From"] = absender
-    msg["To"] = empfaenger
+    msg = MIMEMultipart()
+    msg['From'] = "lead-agent@james-fuse.de"
+    msg['To'] = "info@james-fuse.de"
+    msg['Subject'] = "Neue potenzielle Kunden für Sicherungen"
+    msg.attach(MIMEText(body, "plain"))
 
-    server = smtplib.SMTP("smtp.ionos.de", 587)
-    server.starttls()
-    server.login("lead-agent@james-fuse.de", os.getenv("EMAIL_PASSWORD"))
-    server.send_message(msg)
-    server.quit()
+    try:
+        server = smtplib.SMTP_SSL("smtp.ionos.de", 465)
+        server.login("lead-agent@james-fuse.de", os.getenv("EMAIL_PASSWORD"))
+        server.send_message(msg)
+        server.quit()
+        print("✉️ E-Mail erfolgreich gesendet")
+    except Exception as e:
+        print(f"Fehler beim Senden der E-Mail: {e}")
 else:
-    print("Keine neuen Leads gefunden.")
+    print("❌ Keine neuen Links gefunden.")
+
+# Neue Links speichern
+with open(seen_links_file, "a") as f:
+    for _, link in new_links:
+        f.write(link + "\n")
