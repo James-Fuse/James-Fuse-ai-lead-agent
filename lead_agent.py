@@ -1,10 +1,10 @@
 import os
+import json
 import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from serpapi import GoogleSearch
 
-# Suchbegriffe
+# Lead-Suchbegriffe
 suchbegriffe = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
@@ -20,68 +20,53 @@ suchbegriffe = [
     "Sicherung defekt Austausch"
 ]
 
-# Ergebnisse speichern
-neue_links = set()
-bekannte_links_path = "bekannte_links.txt"
+# Bisher bekannte Links laden oder leere Menge starten
+bekannte_links = set()
+if os.path.exists("bekannte_links.json"):
+    with open("bekannte_links.json", "r") as f:
+        bekannte_links = set(json.load(f))
 
-# Lade bekannte Links
-if os.path.exists(bekannte_links_path):
-    with open(bekannte_links_path, "r") as file:
-        bekannte_links = set(file.read().splitlines())
-else:
-    bekannte_links = set()
+# Neue Ergebnisse sammeln
+unique_links = []
 
-# SerpAPI Key (aus Umgebungsvariable)
-SERPAPI_KEY = os.getenv("SERPAPI_KEY")
-
-# Ergebnisse suchen
 for begriff in suchbegriffe:
     print(f"🔍 Suche: {begriff}")
     params = {
-        "q": begriff,
-        "location": "Germany",
-        "hl": "de",
-        "gl": "de",
-        "api_key": SERPAPI_KEY,
         "engine": "google",
-        "num": "20"
+        "q": begriff,
+        "hl": "de",
+        "location": "Germany",
+        "num": 20,
+        "api_key": os.getenv("SERPAPI_KEY")
     }
-
     search = GoogleSearch(params)
     results = search.get_dict()
     if "organic_results" in results:
         for result in results["organic_results"]:
             link = result.get("link")
             if link and link not in bekannte_links:
-                neue_links.add(link)
+                unique_links.append(link)
+                bekannte_links.add(link)
+                if len(unique_links) >= 10:
+                    break
+    if len(unique_links) >= 10:
+        break
 
-# E-Mail versenden (wenn neue Links vorhanden)
-if neue_links:
-    email_sender = "lead-agent@james-fuse.de"
-    email_receiver = "info@james-fuse.de"
-    email_password = os.getenv("EMAIL_PASSWORD")
+# Links speichern, um Duplikate zu vermeiden
+with open("bekannte_links.json", "w") as f:
+    json.dump(list(bekannte_links), f)
 
-    subject = "Neue Leads für Sicherungen gefunden"
-    body = "Hier sind neue potenzielle Kunden:
-\n\n" + "\n".join(list(neue_links)[:10])
+# Nur wenn neue Links gefunden wurden, E-Mail senden
+if unique_links:
+    body = """Hier sind neue potenzielle Kunden:\n\n""" + "\n".join(unique_links)
 
-    msg = MIMEMultipart()
-    msg["From"] = email_sender
-    msg["To"] = email_receiver
-    msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain"))
+    msg = MIMEText(body)
+    msg['Subject'] = 'Neue Lead-Ergebnisse'
+    msg['From'] = "lead-agent@james-fuse.de"
+    msg['To'] = "info@james-fuse.de"
 
-    try:
-        with smtplib.SMTP_SSL("smtp.strato.de", 465) as server:
-            server.login(email_sender, email_password)
-            server.sendmail(email_sender, email_receiver, msg.as_string())
-            print("📧 E-Mail erfolgreich gesendet!")
-    except smtplib.SMTPAuthenticationError:
-        print("❌ Fehler: E-Mail-Zugangsdaten sind ungültig.")
-else:
-    print("ℹ️ Keine neuen Leads gefunden.")
-
-# Neue Links zur Liste hinzufügen
-bekannte_links.update(neue_links)
-with open(bekannte_links_path, "w") as file:
-    file.write("\n".join(bekannte_links))
+    server = smtplib.SMTP("smtp.ionos.de", 587)
+    server.starttls()
+    server.login("lead-agent@james-fuse.de", os.getenv("EMAIL_PASSWORD"))
+    server.send_message(msg)
+    server.quit()
