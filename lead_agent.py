@@ -1,10 +1,18 @@
-import os
 import smtplib
-import time
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import ssl
+from email.message import EmailMessage
+import os
+from datetime import datetime
+import random
 
-# 🔍 Deine Suchbegriffe
+# Einstellungen
+ABSENDER = "mj.mix888@gmail.com"
+EMPFÄNGER = "info@james-fuse.de"
+PASSWORT = os.getenv("EMAIL_PASSWORD")  # App-Passwort hier hinterlegen als GitHub Secret
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 465
+
+# Simulierte Suchbegriffe und Ergebnisse
 SUCHBEGRIFFE = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
@@ -20,67 +28,47 @@ SUCHBEGRIFFE = [
     "Sicherung defekt Austausch"
 ]
 
-# ✅ Bekannte Links speichern
-BEKANNTE_LINKS_DATEI = "bekannte_links.txt"
+BEISPIEL_LEADS = [
+    "https://www.wlw.de/de/firma/formeotec-gmbh-co-kg-1858600",
+    "https://www.wlw.de/de/firma/fronius-schweiz-ag-100136",
+    "https://www.wlw.de/de/firma/dosen-zentrale-zuechner-gmbh-395576",
+    "https://www.wlw.de/de/firma/wurster-druck-verpackung-gmbh-1152358",
+    "https://www.wlw.de/de/firma/keller-elektrotechnik-gmbh-1234567",
+    "https://www.wlw.de/de/firma/beispiel-firma-gmbh-9999999",
+    "https://www.wlw.de/de/firma/stark-elektroanlagen-gmbh-1112223",
+    "https://www.wlw.de/de/firma/auto-sicherung-gmbh-4455667",
+    "https://www.wlw.de/de/firma/industrie-schutz-gmbh-3338881",
+    "https://www.wlw.de/de/firma/fusetec-automation-gmbh-7779990"
+]
 
-# 📩 E-Mail-Konfiguration
-ABSENDER = "mj.mix888@gmail.com"
-EMPFÄNGER = "info@james-fuse.de"
-PASSWORT = os.getenv("EMAIL_PASSWORD")  # Das App-spezifische Passwort von Gmail
-
-def lade_bekannte_links():
-    if not os.path.exists(BEKANNTE_LINKS_DATEI):
-        return set()
-    with open(BEKANNTE_LINKS_DATEI, "r") as f:
-        return set(line.strip() for line in f.readlines())
-
-def speichere_links(links):
-    with open(BEKANNTE_LINKS_DATEI, "a") as f:
-        for link in links:
-            f.write(link + "\n")
-
-def mock_suche(begriff):
-    # ✨ Hier ist nur ein Mock – ersetze das später mit echter Websuche
-    base_url = "https://www.wlw.de/de/firma/"
-    return [f"{base_url}{begriff.replace(' ', '-').lower()}-firma{i}" for i in range(1, 4)]
+def generiere_leads(max_anzahl=10):
+    zufaellige_leads = random.sample(BEISPIEL_LEADS, k=max_anzahl)
+    ergebnisse = []
+    for begriff in SUCHBEGRIFFE:
+        linkgruppe = random.sample(zufaellige_leads, k=min(3, len(zufaellige_leads)))
+        ergebnisse.append(f"\U0001F50D Suche: {begriff}")
+        for link in linkgruppe:
+            ergebnisse.append(f"➔ {link}")
+        ergebnisse.append("")
+    return "\n".join(ergebnisse)
 
 def sende_email(betreff, inhalt):
-    print("📧 Sende E-Mail...")
-
-    msg = MIMEMultipart()
+    msg = EmailMessage()
+    msg.set_content(inhalt)
+    msg["Subject"] = betreff
     msg["From"] = ABSENDER
     msg["To"] = EMPFÄNGER
-    msg["Subject"] = betreff
-    msg.attach(MIMEText(inhalt, "plain"))
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
         server.login(ABSENDER, PASSWORT)
-        server.sendmail(ABSENDER, EMPFÄNGER, msg.as_string())
+        server.send_message(msg)
 
 def main():
-    bekannte_links = lade_bekannte_links()
-    neue_links = set()
-    ergebnisse = ""
-
-    for begriff in SUCHBEGRIFFE:
-        print(f"🔍 Suche: {begriff}")
-        gefundene = mock_suche(begriff)
-        for link in gefundene:
-            if link not in bekannte_links:
-                neue_links.add(link)
-                ergebnisse += f"{begriff}\n➡️ {link}\n\n"
-            if len(neue_links) >= 10:
-                break
-        if len(neue_links) >= 10:
-            break
-
-    if neue_links:
-        sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
-        speichere_links(neue_links)
-        print("✅ E-Mail versendet mit neuen Leads.")
-    else:
-        sende_email("Lead-Agent hat keine neuen Firmen gefunden", "Der Lead-Agent hat bei der aktuellen Suche keine neuen Firmen gefunden.")
-        print("ℹ️ Keine neuen Leads gefunden.")
+    print("🔍 Suche nach Leads läuft...")
+    ergebnisse = generiere_leads()
+    print("📧 Sende E-Mail...")
+    sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
 
 if __name__ == "__main__":
     main()
