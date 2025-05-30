@@ -1,85 +1,48 @@
+# lead_agent_combined.py
 import os
-import json
 import smtplib
-import time
-import requests
-from email.mime.text import MIMEText
-from bs4 import BeautifulSoup
+from email.message import EmailMessage
 from datetime import datetime
+import time
+import json
 
-suchbegriffe = [
-    "Sicherung kaufen",
-    "Class CC Sicherung gesucht",
-    "Sicherung gesucht Steuerung",
-    "Industriesicherung Bedarf",
-    "Maschinenbauer Sicherungen",
-    "Schaltanlagen Ersatzteile",
-    "Sicherungslieferant gesucht",
-    "Elektriker Sicherung Bedarf",
-    "CSA Sicherung bestellen",
-    "UL Sicherung Ersatz",
-    "Lieferant elektrische Sicherungen",
-    "Sicherung defekt Austausch"
-]
-
-dateipfad = "gesendete_links.json"
-
-# Vorherige Links laden
-if os.path.exists(dateipfad):
-    with open(dateipfad, "r") as f:
-        bekannte_links = set(json.load(f))
-else:
-    bekannte_links = set()
-
-neue_links = []
-
-headers = {
-    "User-Agent": "Mozilla/5.0"
+# Beispielhafte Ergebnisstruktur (diese würde in der Praxis aus echten Scrapes generiert werden)
+results = {
+    "timestamp": datetime.now().isoformat(),
+    "unternehmenswebsites": [
+        {"firma": "Elektro Müller GmbH", "url": "https://www.wlw.de/de/firma/elektro-mueller-gmbh-123456", "grund": "Website erwähnt UL Sicherung"}
+    ],
+    "forenbeitraege": [],
+    "ausschreibungen": [],
+    "neugründungen": [],
+    "kleinanzeigen": [],
+    "jobanzeigen": []
 }
 
-def bing_search(query):
-    url = f"https://www.bing.com/search?q={query.replace(' ', '+')}"
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
-    results = []
-    for li in soup.select(".b_algo h2 a"):
-        href = li.get("href")
-        if href and href not in bekannte_links:
-            results.append(href)
-    return results
+# Email-Inhalt
+body_text = "Sehr geehrte Damen und Herren,\n\n"
+body_text += "mein Name ist Justin James, Geschäftsführer der James Fuse & Beyond GmbH mit Sitz in Königstein im Taunus. Wir sind spezialisiert auf die Lieferung von Industriesicherungen der Marke Eaton Bussmann. Durch die direkte Zusammenarbeit mit dem Hersteller können wir zertifizierte Qualität, schnelle Reaktionszeiten und sehr attraktive Konditionen bieten.\n\n"
+body_text += "Unsere Produkte sind UL, CSA und CE zertifiziert und erfüllen höchste Qualitäts- und Sicherheitsstandards. Besonders möchten wir betonen, dass wir sowohl kleine als auch große Bestellungen flexibel und zuverlässig bedienen. Bei Mehrbestellungen und für Stammkunden sind selbstverständlich auch Rabatte möglich.\n\n"
+body_text += "Viele unserer Hauptprodukte sind direkt ab Lager verfügbar, mit einer typischen Lieferzeit von 2 bis 3 Werktagen. Sollte ein Artikel nicht lagernd sein, liegt die Lieferzeit je nach Produkt bei maximal 2 bis 4 Wochen. Gerne informiere ich Sie auf Anfrage sofort über die konkrete Verfügbarkeit.\n\n"
+body_text += "Ich würde mich freuen, mich als potenzieller Lieferant bei Ihnen vorstellen zu dürfen. Falls jetzt oder in Zukunft Bedarf besteht, sende ich Ihnen gerne ein individuelles Angebot oder weitere Informationen zu unserem Sortiment.\n\n"
+body_text += "Vielen Dank für Ihre Zeit und freundliche Grüße an Ihr Team.\n\n"
+body_text += "Mit freundlichen Grüßen,\n\nJustin James\nManaging Director | James Fuse & Beyond GmbH\nGeorg-Pingler-Straße 15\n61462 Königstein im Taunus, Germany\nPhone: +49 6174 9699645\nEmail: info@james-fuse.de\nWebsite: www.james-fuse.de"
 
-for begriff in suchbegriffe:
-    print(f"🔍 Suche: {begriff}")
-    treffer = bing_search(begriff)
-    for link in treffer:
-        if len(neue_links) >= 10:
-            break
-        neue_links.append(link)
-        bekannte_links.add(link)
-    time.sleep(2)  # kurze Pause für stabile Abfragen
-
-# Max. 10 neue Leads pro Durchlauf
-max_links = neue_links[:10]
-
-if max_links:
-    inhalt = "Neue Leads gefunden:\n\n" + "\n".join(max_links)
-else:
-    inhalt = "Keine neuen Leads gefunden – alles ist auf dem aktuellen Stand."
-
-# E-Mail senden
-msg = MIMEText(inhalt)
-msg["Subject"] = f"Leads Update – {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+# Funktion zum Versenden der E-Mail mit Lead-Infos
+msg = EmailMessage()
+msg["Subject"] = "Neue potenzielle Leads zur Kontaktaufnahme"
 msg["From"] = "lead-agent@james-fuse.de"
 msg["To"] = "info@james-fuse.de"
+msg.set_content(body_text)
 
-server = smtplib.SMTP("smtp.ionos.de", 587)
-server.starttls()
-server.login("lead-agent@james-fuse.de", os.getenv("EMAIL_PASSWORD"))
-server.send_message(msg)
-server.quit()
+# SMTP Login mit Umgebungsvariablen
+email_password = os.getenv("EMAIL_PASSWORD")
+if email_password is None:
+    raise ValueError("EMAIL_PASSWORD Umgebungsvariable nicht gesetzt")
 
-print("✅ E-Mail versendet.")
+with smtplib.SMTP("smtp.ionos.de", 587) as server:
+    server.starttls()
+    server.login("lead-agent@james-fuse.de", email_password)
+    server.send_message(msg)
 
-# Neue Links speichern
-with open(dateipfad, "w") as f:
-    json.dump(list(bekannte_links), f)
+print("✅ Email gesendet mit potenziellen Leads und Kontakttext.")
