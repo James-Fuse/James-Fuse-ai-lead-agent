@@ -1,9 +1,11 @@
-import os
 import smtplib
-from email.message import EmailMessage
+import os
+import time
+import json
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-# Suchbegriffe für Leads
-suchbegriffe = [
+SUCHBEGRIFFE = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
     "Sicherung gesucht Steuerung",
@@ -18,53 +20,85 @@ suchbegriffe = [
     "Sicherung defekt Austausch"
 ]
 
-# Pfad zur Datei mit bekannten Links
-bekannte_links_datei = "bekannte_links.txt"
-if os.path.exists(bekannte_links_datei):
-    with open(bekannte_links_datei, "r") as f:
-        bekannte_links = set(f.read().splitlines())
-else:
-    bekannte_links = set()
+BEKANNTE_DATEI = "bekannte_links.json"
+EMAIL_EMPFÄNGER = "info@james-fuse.de"
+ABSENDER = "info@james-fuse.de"
+PASSWORT = os.getenv("EMAIL_PASSWORD")
 
-# Simulierte Suchfunktion (hier bitte eigene Crawling- oder API-Logik einbauen)
-def suche_leads(begriffe, bekannte_links):
+def lade_bekannte_links():
+    if os.path.exists(BEKANNTE_DATEI):
+        with open(BEKANNTE_DATEI, "r") as f:
+            return set(json.load(f))
+    return set()
+
+def speichere_bekannte_links(links):
+    with open(BEKANNTE_DATEI, "w") as f:
+        json.dump(list(links), f)
+
+def dummy_google_suche(begriff):
+    # Dies ist ein Platzhalter. Hier soll in Zukunft echte Websuche implementiert werden.
+    dummy_links = [
+        f"https://www.wlw.de/suche?q={begriff.replace(' ', '+')}&firma=beispiel{n}"
+        for n in range(1, 6)
+    ]
+    return dummy_links
+
+def finde_neue_leads():
+    bekannte_links = lade_bekannte_links()
     neue_links = set()
-    for begriff in begriffe:
-        print(f"🔍 Suche: {begriff}")
-        link = f"https://www.wlw.de/de/suche?q={begriff.replace(' ', '+')}"
-        if link not in bekannte_links:
+    ausgabe = ""
+
+    for suchbegriff in SUCHBEGRIFFE:
+        ausgabe += f"\n🔍 Suche: {suchbegriff}\n"
+        ergebnisse = dummy_google_suche(suchbegriff)
+        neue = [link for link in ergebnisse if link not in bekannte_links]
+
+        for link in neue[:3]:  # Pro Suchbegriff max. 3 neue
+            ausgabe += f"➡️ {link}\n"
             neue_links.add(link)
-    return list(neue_links)[:10]  # Max. 10 neue Leads
 
-neue_links = suche_leads(suchbegriffe, bekannte_links)
-
-# E-Mail nur senden, wenn es neue Leads gibt
-if neue_links:
-    absender = "info@james-fuse.de"
-    empfaenger = "info@james-fuse.de"
-    passwort = os.getenv("EMAIL_PASSWORD")
-
-    # E-Mail-Inhalt
-    message = EmailMessage()
-    message["Subject"] = "Neue potenzielle Kunden gefunden"
-    message["From"] = absender
-    message["To"] = empfaenger
-
-    inhalt = "Hier sind neue potenzielle Kunden:\n\n"
-    for link in neue_links:
-        inhalt += f"➡️ {link}\n"
-    message.set_content(inhalt)
-
-    # E-Mail versenden
-    with smtplib.SMTP_SSL("smtp.ionos.de", 465) as server:
-        server.login(absender, passwort)
-        server.send_message(message)
-
-    print("✅ E-Mail wurde erfolgreich gesendet.")
-
-    # Neue Links merken
     bekannte_links.update(neue_links)
-    with open(bekannte_links_datei, "w") as f:
-        f.write("\n".join(bekannte_links))
-else:
-    print("ℹ️ Keine neuen Leads. Keine E-Mail gesendet.")
+    speichere_bekannte_links(bekannte_links)
+    return ausgabe.strip()
+
+def sende_email(betreff, inhalt):
+    msg = MIMEMultipart()
+    msg["From"] = ABSENDER
+    msg["To"] = EMAIL_EMPFÄNGER
+    msg["Subject"] = betreff
+
+    text = f"""
+Sehr geehrte Damen und Herren,
+mein Name ist Justin James, Geschäftsführer der James Fuse & Beyond GmbH mit Sitz in Königstein im Taunus. Wir sind spezialisiert auf die Lieferung von Industriesicherungen der Marke Eaton Bussmann. Durch die direkte Zusammenarbeit mit dem Hersteller können wir zertifizierte Qualität, schnelle Reaktionszeiten und sehr attraktive Konditionen bieten.
+Unsere Produkte sind UL, CSA und CE zertifiziert und erfüllen höchste Qualitäts- und Sicherheitsstandards. Besonders möchten wir betonen, dass wir sowohl kleine als auch große Bestellungen flexibel und zuverlässig bedienen. Bei Mehrbestellungen und für Stammkunden sind selbstverständlich auch Rabatte möglich.
+Viele unserer Hauptprodukte sind direkt ab Lager verfügbar, mit einer typischen Lieferzeit von 2 bis 3 Werktagen. Sollte ein Artikel nicht lagernd sein, liegt die Lieferzeit je nach Produkt bei maximal 2 bis 4 Wochen. Gerne informiere ich Sie auf Anfrage sofort über die konkrete Verfügbarkeit.
+Ich würde mich freuen, mich als potenzieller Lieferant bei Ihnen vorstellen zu dürfen. Falls jetzt oder in Zukunft Bedarf besteht, sende ich Ihnen gerne ein individuelles Angebot oder weitere Informationen zu unserem Sortiment.
+
+Vielen Dank für Ihre Zeit und freundliche Grüße an Ihr Team.
+
+Hier sind neue potenzielle Kunden aus dem Internet:
+{inhalt}
+
+Mit freundlichen Grüßen,
+
+Justin James  
+Managing Director | James Fuse & Beyond GmbH  
+Georg-Pingler-Straße 15  
+61462 Königstein im Taunus, Germany  
+Phone: +49 6174 9699645  
+Email: info@james-fuse.de  
+Website: www.james-fuse.de
+"""
+    msg.attach(MIMEText(text, "plain"))
+
+    with smtplib.SMTP("smtp.ionos.de", 587) as server:
+        server.starttls()
+        server.login(ABSENDER, PASSWORT)
+        server.send_message(msg)
+
+if __name__ == "__main__":
+    ergebnisse = finde_neue_leads()
+    if ergebnisse:
+        sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
+    else:
+        sende_email("Keine neuen Leads gefunden", "Diesmal wurden keine neuen Ergebnisse gefunden.")
