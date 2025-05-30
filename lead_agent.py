@@ -1,48 +1,70 @@
-# lead_agent_combined.py
 import os
 import smtplib
 from email.message import EmailMessage
-from datetime import datetime
-import time
-import json
 
-# Beispielhafte Ergebnisstruktur (diese würde in der Praxis aus echten Scrapes generiert werden)
-results = {
-    "timestamp": datetime.now().isoformat(),
-    "unternehmenswebsites": [
-        {"firma": "Elektro Müller GmbH", "url": "https://www.wlw.de/de/firma/elektro-mueller-gmbh-123456", "grund": "Website erwähnt UL Sicherung"}
-    ],
-    "forenbeitraege": [],
-    "ausschreibungen": [],
-    "neugründungen": [],
-    "kleinanzeigen": [],
-    "jobanzeigen": []
-}
+# Suchbegriffe für Leads
+suchbegriffe = [
+    "Sicherung kaufen",
+    "Class CC Sicherung gesucht",
+    "Sicherung gesucht Steuerung",
+    "Industriesicherung Bedarf",
+    "Maschinenbauer Sicherungen",
+    "Schaltanlagen Ersatzteile",
+    "Sicherungslieferant gesucht",
+    "Elektriker Sicherung Bedarf",
+    "CSA Sicherung bestellen",
+    "UL Sicherung Ersatz",
+    "Lieferant elektrische Sicherungen",
+    "Sicherung defekt Austausch"
+]
 
-# Email-Inhalt
-body_text = "Sehr geehrte Damen und Herren,\n\n"
-body_text += "mein Name ist Justin James, Geschäftsführer der James Fuse & Beyond GmbH mit Sitz in Königstein im Taunus. Wir sind spezialisiert auf die Lieferung von Industriesicherungen der Marke Eaton Bussmann. Durch die direkte Zusammenarbeit mit dem Hersteller können wir zertifizierte Qualität, schnelle Reaktionszeiten und sehr attraktive Konditionen bieten.\n\n"
-body_text += "Unsere Produkte sind UL, CSA und CE zertifiziert und erfüllen höchste Qualitäts- und Sicherheitsstandards. Besonders möchten wir betonen, dass wir sowohl kleine als auch große Bestellungen flexibel und zuverlässig bedienen. Bei Mehrbestellungen und für Stammkunden sind selbstverständlich auch Rabatte möglich.\n\n"
-body_text += "Viele unserer Hauptprodukte sind direkt ab Lager verfügbar, mit einer typischen Lieferzeit von 2 bis 3 Werktagen. Sollte ein Artikel nicht lagernd sein, liegt die Lieferzeit je nach Produkt bei maximal 2 bis 4 Wochen. Gerne informiere ich Sie auf Anfrage sofort über die konkrete Verfügbarkeit.\n\n"
-body_text += "Ich würde mich freuen, mich als potenzieller Lieferant bei Ihnen vorstellen zu dürfen. Falls jetzt oder in Zukunft Bedarf besteht, sende ich Ihnen gerne ein individuelles Angebot oder weitere Informationen zu unserem Sortiment.\n\n"
-body_text += "Vielen Dank für Ihre Zeit und freundliche Grüße an Ihr Team.\n\n"
-body_text += "Mit freundlichen Grüßen,\n\nJustin James\nManaging Director | James Fuse & Beyond GmbH\nGeorg-Pingler-Straße 15\n61462 Königstein im Taunus, Germany\nPhone: +49 6174 9699645\nEmail: info@james-fuse.de\nWebsite: www.james-fuse.de"
+# Pfad zur Datei mit bekannten Links
+bekannte_links_datei = "bekannte_links.txt"
+if os.path.exists(bekannte_links_datei):
+    with open(bekannte_links_datei, "r") as f:
+        bekannte_links = set(f.read().splitlines())
+else:
+    bekannte_links = set()
 
-# Funktion zum Versenden der E-Mail mit Lead-Infos
-msg = EmailMessage()
-msg["Subject"] = "Neue potenzielle Leads zur Kontaktaufnahme"
-msg["From"] = "lead-agent@james-fuse.de"
-msg["To"] = "info@james-fuse.de"
-msg.set_content(body_text)
+# Simulierte Suchfunktion (hier bitte eigene Crawling- oder API-Logik einbauen)
+def suche_leads(begriffe, bekannte_links):
+    neue_links = set()
+    for begriff in begriffe:
+        print(f"🔍 Suche: {begriff}")
+        link = f"https://www.wlw.de/de/suche?q={begriff.replace(' ', '+')}"
+        if link not in bekannte_links:
+            neue_links.add(link)
+    return list(neue_links)[:10]  # Max. 10 neue Leads
 
-# SMTP Login mit Umgebungsvariablen
-email_password = os.getenv("EMAIL_PASSWORD")
-if email_password is None:
-    raise ValueError("EMAIL_PASSWORD Umgebungsvariable nicht gesetzt")
+neue_links = suche_leads(suchbegriffe, bekannte_links)
 
-with smtplib.SMTP("smtp.ionos.de", 587) as server:
-    server.starttls()
-    server.login("lead-agent@james-fuse.de", email_password)
-    server.send_message(msg)
+# E-Mail nur senden, wenn es neue Leads gibt
+if neue_links:
+    absender = "info@james-fuse.de"
+    empfaenger = "info@james-fuse.de"
+    passwort = os.getenv("EMAIL_PASSWORD")
 
-print("✅ Email gesendet mit potenziellen Leads und Kontakttext.")
+    # E-Mail-Inhalt
+    message = EmailMessage()
+    message["Subject"] = "Neue potenzielle Kunden gefunden"
+    message["From"] = absender
+    message["To"] = empfaenger
+
+    inhalt = "Hier sind neue potenzielle Kunden:\n\n"
+    for link in neue_links:
+        inhalt += f"➡️ {link}\n"
+    message.set_content(inhalt)
+
+    # E-Mail versenden
+    with smtplib.SMTP_SSL("smtp.ionos.de", 465) as server:
+        server.login(absender, passwort)
+        server.send_message(message)
+
+    print("✅ E-Mail wurde erfolgreich gesendet.")
+
+    # Neue Links merken
+    bekannte_links.update(neue_links)
+    with open(bekannte_links_datei, "w") as f:
+        f.write("\n".join(bekannte_links))
+else:
+    print("ℹ️ Keine neuen Leads. Keine E-Mail gesendet.")
