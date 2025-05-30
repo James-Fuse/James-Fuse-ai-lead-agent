@@ -24,7 +24,7 @@ SUCHBEGRIFFE = [
 BEKANNTE_LINKS_DATEI = "bekannte_links.txt"
 
 # 📩 E-Mail-Konfiguration
-ABSENDER = "mj.mix88@gmail.com"
+ABSENDER = "mj.mix888@gmail.com"
 EMPFÄNGER = "info@james-fuse.de"
 PASSWORT = os.getenv("EMAIL_PASSWORD")  # Das App-spezifische Passwort von Gmail
 
