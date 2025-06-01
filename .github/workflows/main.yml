@@ -1,3 +1,31 @@
-- name: Install dependencies
-  run: |
-    pip install -r requirements.txt
+name: Lead Agent alle 3 Stunden
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'  # Alle 3 Stunden
+  workflow_dispatch:
+
+jobs:
+  run-lead-agent:
+    runs-on: ubuntu-latest
+
+    env:
+      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v3
+
+      - name: Python installieren
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Abhängigkeiten installieren
+        run: |
+          pip install --upgrade pip
+          pip install google-search-results
+
+      - name: Python-Skript ausführen
+        run: python lead_agent.py
