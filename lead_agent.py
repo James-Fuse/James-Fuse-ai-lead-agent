@@ -1,82 +1,70 @@
-# lead_agent.py
 import smtplib
-from email.mime.text import MIMEText
+import requests
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from bs4 import BeautifulSoup
 from datetime import datetime
 
-ABSENDER = "mj.mix888@gmail.com"
+ABSENDER = "mjmix888@gmail.com"
+PASSWORT = "dndg cizt plii mvtm"
 EMPFÄNGER = "info@james-fuse.de"
-PASSWORT = "dndg cizt plii mvtm"  # App-spezifisches Passwort von Gmail
 
-# Placeholder-Scraper (Dummy-Ergebnisse, du kannst später echte Scraper einbauen)
-def finde_leads_wlw():
-    return ["Firma A bei wlw.de", "Firma B bei wlw.de"]
+SUCHBEGRIFFE = [
+    "Sicherung kaufen site:wlw.de",
+    "Class CC Sicherung gesucht site:ebay.de",
+    "Industriesicherung Bedarf site:kleinanzeigen.de",
+    "UL Sicherung gesucht site:technikboerse.com",
+    "Sicherungsbedarf site:industrystock.de",
+    "Sicherung gesucht site:mikrocontroller.net",
+    "Sicherung site:elektrotechnik-forum.de",
+    "Sicherung site:bund.de",
+    "Sicherung site:ted.europa.eu",
+    "Sicherung site:northdata.de"
+]
 
-def finde_leads_ebay():
-    return ["Inserat: Sicherung gesucht auf ebay"]
+HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-def finde_leads_kleinanzeigen():
-    return ["Gesuch: UL Sicherung auf Kleinanzeigen"]
 
-def finde_leads_industrystock():
-    return ["Firma C bei industrystock"]
+def finde_leads():
+    leads = []
+    for begriff in SUCHBEGRIFFE:
+        try:
+            response = requests.get(f"https://www.google.com/search?q={begriff}", headers=HEADERS)
+            soup = BeautifulSoup(response.text, "html.parser")
+            for g in soup.find_all('div', class_='tF2Cxc'):
+                titel = g.find('h3').text if g.find('h3') else "Kein Titel"
+                link = g.find('a')['href'] if g.find('a') else "Kein Link"
+                beschreibung = g.find('div', class_='VwiC3b').text if g.find('div', class_='VwiC3b') else "Keine Beschreibung"
+                leads.append({"titel": titel, "link": link, "beschreibung": beschreibung})
+        except Exception as e:
+            leads.append({"titel": f"Fehler bei {begriff}", "link": "", "beschreibung": str(e)})
+    return leads
 
-def finde_leads_technikboerse():
-    return ["Anfrage auf technikboerse"]
 
-def finde_leads_mikrocontroller():
-    return ["Post: Suche Sicherung auf mikrocontroller.net"]
+def sende_email(leads):
+    msg = MIMEMultipart()
+    msg['From'] = ABSENDER
+    msg['To'] = EMPFÄNGER
+    msg['Subject'] = f"Neue Leads (Stand: {datetime.now().strftime('%d.%m.%Y %H:%M')})"
 
-def finde_leads_elektronik_forum():
-    return ["Beitrag auf elektrotechnik-forum.de"]
+    html = "<h3>Neue potenzielle Leads:</h3><ul>"
+    for eintrag in leads:
+        html += f"<li><strong>{eintrag['titel']}</strong><br><a href='{eintrag['link']}'>{eintrag['link']}</a><br>{eintrag['beschreibung']}</li><br>"
+    html += "</ul>"
 
-def finde_leads_opencorporates():
-    return ["Neue Firma: Elektro XY GmbH"]
+    msg.attach(MIMEText(html, 'html'))
 
-def finde_leads_northdata():
-    return ["Neueintragung: Automatisierung ABC"]
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+        server.login(ABSENDER, PASSWORT)
+        server.send_message(msg)
 
-def finde_leads_bund():
-    return ["Ausschreibung Sicherungen auf bund.de"]
-
-def finde_leads_ted():
-    return ["EU-Tender: Sicherungen"]
-
-def sende_email(betreff, text):
-    nachricht = MIMEMultipart()
-    nachricht['From'] = ABSENDER
-    nachricht['To'] = EMPFÄNGER
-    nachricht['Subject'] = betreff
-    nachricht.attach(MIMEText(text, 'plain'))
-
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(ABSENDER, PASSWORT)
-    server.sendmail(ABSENDER, EMPFÄNGER, nachricht.as_string())
-    server.quit()
 
 def main():
-    print("🔍 Suche nach Leads läuft...")
-    leads = []
-    leads += finde_leads_wlw()
-    leads += finde_leads_ebay()
-    leads += finde_leads_kleinanzeigen()
-    leads += finde_leads_industrystock()
-    leads += finde_leads_technikboerse()
-    leads += finde_leads_mikrocontroller()
-    leads += finde_leads_elektronik_forum()
-    leads += finde_leads_opencorporates()
-    leads += finde_leads_northdata()
-    leads += finde_leads_bund()
-    leads += finde_leads_ted()
-
-    text = "Sehr geehrte Damen und Herren,\n\n" + \
-           "mein Name ist Justin James, Geschäftsführer der James Fuse & Beyond GmbH mit Sitz in Königstein im Taunus. " \
-           "Wir sind spezialisiert auf die Lieferung von Industriesicherungen der Marke Eaton Bussmann..." \
-           "\n\n---\n\nNeue potenzielle Leads:\n" + "\n".join(leads)
-
+    print("🔍 Suche nach echten Leads läuft...")
+    leads = finde_leads()
     print("📧 Sende E-Mail...")
-    sende_email("Neue Leads: Firmen mit Sicherungsbedarf", text)
+    sende_email(leads)
+
 
 if __name__ == "__main__":
     main()
