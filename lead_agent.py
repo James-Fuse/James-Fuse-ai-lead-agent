@@ -3,14 +3,13 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from serpapi import GoogleSearch
-import time
 
 # Konfiguration
 ABSENDER = "mj.mix888@gmail.com"
 EMPFÄNGER = "info@james-fuse.de"
-PASSWORT = "dndg cizt plii mvtm"  # App-spezifisches Passwort für Gmail
+PASSWORT = "dndg cizt plii mvtm"  # App-spezifisches Passwort von Google
 
-SUCHANFRAGEN = [
+SUCHBEGRIFFE = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
     "Sicherung gesucht Steuerung",
@@ -25,7 +24,8 @@ SUCHANFRAGEN = [
     "Sicherung defekt Austausch"
 ]
 
-EMAIL_TEXT = '''Sehr geehrte Damen und Herren,
+EMAIL_TEXT = """
+Sehr geehrte Damen und Herren,
 
 mein Name ist Justin James, Geschäftsführer der James Fuse & Beyond GmbH mit Sitz in Königstein im Taunus. Wir sind spezialisiert auf die Lieferung von Industriesicherungen der Marke Eaton Bussmann. Durch die direkte Zusammenarbeit mit dem Hersteller können wir zertifizierte Qualität, schnelle Reaktionszeiten und sehr attraktive Konditionen bieten.
 
@@ -46,53 +46,47 @@ Georg-Pingler-Straße 15
 Phone: +49 6174 9699645
 Email: info@james-fuse.de
 Website: www.james-fuse.de
-'''
+"""
 
-def suche_nach_leads():
-    leads = []
-    for query in SUCHANFRAGEN:
-        print(f"🔍 Suche: {query}")
+def suche_leads():
+    print("\U0001F50D Suche nach Leads läuft...")
+    ergebnisse = []
+    for begriff in SUCHBEGRIFFE:
+        print(f"🔍 Suche: {begriff}")
         params = {
             "engine": "google",
-            "q": query,
+            "q": begriff,
             "location": "Germany",
             "hl": "de",
             "gl": "de",
             "api_key": os.getenv("SERPAPI_API_KEY")
         }
-        search = GoogleSearch(params)
-        results = search.get_dict()
-        for result in results.get("organic_results", []):
-            title = result.get("title")
-            link = result.get("link")
-            if title and link:
-                leads.append(f"{title}\n{link}")
-        time.sleep(1)
-    return leads
+        suche = GoogleSearch(params)
+        result = suche.get_dict()
+        if "organic_results" in result:
+            for eintrag in result["organic_results"][:3]:
+                ergebnisse.append(f"Gefundene Firma bei Suche nach '{begriff}': {eintrag.get('title')} - {eintrag.get('link')}")
+    return ergebnisse
 
-def sende_email(betreff, inhalte):
-    print("📧 Sende E-Mail...")
-    message = MIMEMultipart()
-    message["From"] = ABSENDER
-    message["To"] = EMPFÄNGER
-    message["Subject"] = betreff
+def sende_email(betreff, inhalt_zeilen):
+    print("\U0001F4E7 Sende E-Mail...")
+    nachricht = MIMEMultipart()
+    nachricht["From"] = ABSENDER
+    nachricht["To"] = EMPFÄNGER
+    nachricht["Subject"] = betreff
 
-    body = EMAIL_TEXT + "\n\n---\nNeue potenzielle Leads:\n" + "\n\n".join(inhalte)
-    message.attach(MIMEText(body, "plain"))
+    text = EMAIL_TEXT + "\n---\nNeue potenzielle Leads:\n" + "\n".join(inhalt_zeilen)
+    nachricht.attach(MIMEText(text, "plain"))
 
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()
     server.login(ABSENDER, PASSWORT)
-    server.sendmail(ABSENDER, EMPFÄNGER, message.as_string())
+    server.sendmail(ABSENDER, EMPFÄNGER, nachricht.as_string())
     server.quit()
 
 def main():
-    print("\ud83d\udd0d Suche nach Leads läuft...")
-    ergebnisse = suche_nach_leads()
-    if ergebnisse:
-        sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
-    else:
-        print("Keine neuen Leads gefunden.")
+    ergebnisse = suche_leads()
+    sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
 
 if __name__ == "__main__":
     main()
