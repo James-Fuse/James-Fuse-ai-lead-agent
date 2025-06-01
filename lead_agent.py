@@ -1,8 +1,8 @@
 import os
 import smtplib
-from serpapi import GoogleSearch
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from serpapi.google_search_results import GoogleSearch
 
 ABSENDER = "mj.mix888@gmail.com"
 EMPFÄNGER = "info@james-fuse.de"
