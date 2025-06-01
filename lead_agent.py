@@ -1,19 +1,12 @@
 import smtplib
 import ssl
-from email.message import EmailMessage
 import os
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-import random
 
-# Einstellungen
-ABSENDER = "mj.mix888@gmail.com"
-EMPFÄNGER = "info@james-fuse.de"
-PASSWORT = os.getenv("EMAIL_PASSWORD")  # App-Passwort hier hinterlegen als GitHub Secret
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 465
-
-# Simulierte Suchbegriffe und Ergebnisse
-SUCHBEGRIFFE = [
+# Suchbegriffe
+suchbegriffe = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
     "Sicherung gesucht Steuerung",
@@ -28,47 +21,43 @@ SUCHBEGRIFFE = [
     "Sicherung defekt Austausch"
 ]
 
-BEISPIEL_LEADS = [
-    "https://www.wlw.de/de/firma/formeotec-gmbh-co-kg-1858600",
-    "https://www.wlw.de/de/firma/fronius-schweiz-ag-100136",
-    "https://www.wlw.de/de/firma/dosen-zentrale-zuechner-gmbh-395576",
-    "https://www.wlw.de/de/firma/wurster-druck-verpackung-gmbh-1152358",
-    "https://www.wlw.de/de/firma/keller-elektrotechnik-gmbh-1234567",
-    "https://www.wlw.de/de/firma/beispiel-firma-gmbh-9999999",
-    "https://www.wlw.de/de/firma/stark-elektroanlagen-gmbh-1112223",
-    "https://www.wlw.de/de/firma/auto-sicherung-gmbh-4455667",
-    "https://www.wlw.de/de/firma/industrie-schutz-gmbh-3338881",
-    "https://www.wlw.de/de/firma/fusetec-automation-gmbh-7779990"
-]
+# Beispielergebnisse (diese sollten vom Such-Agenten ersetzt werden)
+ergebnisse = "".join([f"\n🔍 {begriff}\n➡️ https://beispiel-url.de/{begriff.replace(' ', '-')}" for begriff in suchbegriffe])
 
-def generiere_leads(max_anzahl=10):
-    zufaellige_leads = random.sample(BEISPIEL_LEADS, k=max_anzahl)
-    ergebnisse = []
-    for begriff in SUCHBEGRIFFE:
-        linkgruppe = random.sample(zufaellige_leads, k=min(3, len(zufaellige_leads)))
-        ergebnisse.append(f"\U0001F50D Suche: {begriff}")
-        for link in linkgruppe:
-            ergebnisse.append(f"➔ {link}")
-        ergebnisse.append("")
-    return "\n".join(ergebnisse)
+# E-Mail-Konfiguration
+ABSENDER = "mj.mix888@gmail.com"  # Dein Gmail-Konto
+EMPFÄNGER = "info@james-fuse.de"   # Wohin die Leads sollen
+BETREFF = "Neue Leads: Firmen mit Sicherungsbedarf"
+PASSWORT = os.getenv("EMAIL_PASSWORD")  # App-spezifisches Passwort in GitHub Secrets speichern
 
-def sende_email(betreff, inhalt):
-    msg = EmailMessage()
-    msg.set_content(inhalt)
-    msg["Subject"] = betreff
-    msg["From"] = ABSENDER
-    msg["To"] = EMPFÄNGER
+# E-Mail-Nachricht erstellen
+def sende_email(betreff, text):
+    nachricht = MIMEMultipart()
+    nachricht["From"] = ABSENDER
+    nachricht["To"] = EMPFÄNGER
+    nachricht["Subject"] = betreff
+
+    body = f"""
+Hallo Justin,
+
+hier sind die neuen Suchergebnisse von {datetime.now().strftime('%d.%m.%Y %H:%M')}:
+{text}
+
+Viele Grüße,
+Dein Lead-Agent
+"""
+    nachricht.attach(MIMEText(body, "plain"))
 
     context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT, context=context) as server:
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
         server.login(ABSENDER, PASSWORT)
-        server.send_message(msg)
+        server.sendmail(ABSENDER, EMPFÃNGER, nachricht.as_string())
 
+# Hauptfunktion
 def main():
     print("🔍 Suche nach Leads läuft...")
-    ergebnisse = generiere_leads()
     print("📧 Sende E-Mail...")
-    sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
+    sende_email(BETREFF, ergebnisse)
 
 if __name__ == "__main__":
     main()
