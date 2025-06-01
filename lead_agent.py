@@ -1,14 +1,16 @@
-import os
 import smtplib
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from serpapi.google_search_results import GoogleSearch
+from serpapi import GoogleSearch
+import os
+import time
 
+# ✅ Zugangsdaten aus GitHub Secrets
 ABSENDER = "mj.mix888@gmail.com"
 EMPFÄNGER = "info@james-fuse.de"
 PASSWORT = os.getenv("EMAIL_PASSWORD")
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
+# ✅ Suchbegriffe
 SUCHBEGRIFFE = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
@@ -24,34 +26,50 @@ SUCHBEGRIFFE = [
     "Sicherung defekt Austausch"
 ]
 
+# ✅ SerpAPI-Suchfunktion
 def finde_leads(suchbegriff):
+    print(f"🔍 Suche: {suchbegriff}")
     params = {
-        "engine": "google",
         "q": suchbegriff,
         "location": "Germany",
         "hl": "de",
         "gl": "de",
-        "api_key": SERPAPI_KEY
+        "api_key": SERPAPI_KEY,
+        "num": 10,
+        "engine": "google"
     }
     search = GoogleSearch(params)
     results = search.get_dict()
     firmen = []
-
     for ergebnis in results.get("organic_results", []):
-        title = ergebnis.get("title")
-        link = ergebnis.get("link")
-        if title and link:
-            firmen.append(f"{title} → {link}")
-
+        if "title" in ergebnis and "link" in ergebnis:
+            firmen.append(f"{ergebnis['title']}\n{ergebnis['link']}")
     return firmen
 
-def sende_email(betreff, text):
-    nachricht = MIMEMultipart()
+# ✅ E-Mail-Versand
+def sende_email(betreff, inhalt):
+    print("📧 Sende E-Mail...")
+    nachricht = MIMEText(inhalt, "plain", "utf-8")
+    nachricht["Subject"] = betreff
     nachricht["From"] = ABSENDER
     nachricht["To"] = EMPFÄNGER
-    nachricht["Subject"] = betreff
 
-    body = f"""Sehr geehrte Damen und Herren,
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(ABSENDER, PASSWORT)
+        server.sendmail(ABSENDER, EMPFÄNGER, nachricht.as_string())
+
+# ✅ Hauptfunktion
+def main():
+    print("🔍 Suche nach Leads läuft...")
+    ergebnisse = ""
+    for begriff in SUCHBEGRIFFE:
+        firmen = finde_leads(begriff)
+        for firma in firmen:
+            ergebnisse += f"Gefundene Firma bei Suche nach '{begriff}':\n{firma}\n\n"
+        time.sleep(3)  # Wartezeit, um SerpAPI nicht zu überlasten
+
+    # Füge Standardtext hinzu
+    text = f"""Sehr geehrte Damen und Herren,
 
 mein Name ist Justin James, Geschäftsführer der James Fuse & Beyond GmbH mit Sitz in Königstein im Taunus. Wir sind spezialisiert auf die Lieferung von Industriesicherungen der Marke Eaton Bussmann. Durch die direkte Zusammenarbeit mit dem Hersteller können wir zertifizierte Qualität, schnelle Reaktionszeiten und sehr attraktive Konditionen bieten.
 
@@ -63,12 +81,12 @@ Ich würde mich freuen, mich als potenzieller Lieferant bei Ihnen vorstellen zu 
 
 Vielen Dank für Ihre Zeit und freundliche Grüße an Ihr Team.
 
-Mit freundlichen Grüßen
+Mit freundlichen Grüßen,
 
 Justin James  
-James Fuse & Beyond GmbH  
+Managing Director | James Fuse & Beyond GmbH  
 Georg-Pingler-Straße 15  
-61462 Königstein im Taunus  
+61462 Königstein im Taunus, Germany  
 Phone: +49 6174 9699645  
 Email: info@james-fuse.de  
 Website: www.james-fuse.de
@@ -76,30 +94,9 @@ Website: www.james-fuse.de
 ---
 
 Neue potenzielle Leads:
-{text}
+{ergebnisse}
 """
-
-    nachricht.attach(MIMEText(body, "plain"))
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(ABSENDER, PASSWORT)
-        server.sendmail(ABSENDER, EMPFÄNGER, nachricht.as_string())
-
-def main():
-    print("🔍 Suche nach Leads läuft...")
-    alle_firmen = []
-    for begriff in SUCHBEGRIFFE:
-        print(f"🔍 Suche: {begriff}")
-        firmen = finde_leads(begriff)
-        for eintrag in firmen:
-            alle_firmen.append(f"Gefundene Firma bei Suche nach '{begriff}':\n{eintrag}\n")
-
-    if alle_firmen:
-        ergebnisse = "\n".join(alle_firmen)
-        print("📧 Sende E-Mail...")
-        sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
-    else:
-        print("❗ Keine neuen Ergebnisse gefunden.")
+    sende_email("Neue Leads: Firmen mit Sicherungsbedarf", text)
 
 if __name__ == "__main__":
     main()
