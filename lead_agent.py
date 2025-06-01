@@ -1,14 +1,18 @@
 import os
 import smtplib
+import requests
+from bs4 import BeautifulSoup
+from serpapi import GoogleSearch
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from serpapi import GoogleSearch
 
-# Konfiguration
+# Umgebungsvariablen
 ABSENDER = "mj.mix888@gmail.com"
 EMPFÄNGER = "info@james-fuse.de"
-PASSWORT = "dndg cizt plii mvtm"  # App-spezifisches Passwort von Google
+PASSWORT = os.getenv("EMAIL_PASSWORD")
+SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
+# Suchbegriffe
 SUCHBEGRIFFE = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
@@ -24,8 +28,34 @@ SUCHBEGRIFFE = [
     "Sicherung defekt Austausch"
 ]
 
-EMAIL_TEXT = """
-Sehr geehrte Damen und Herren,
+def finde_leads(suchbegriff):
+    params = {
+        "engine": "google",
+        "q": suchbegriff,
+        "location": "Germany",
+        "hl": "de",
+        "gl": "de",
+        "api_key": SERPAPI_KEY
+    }
+    search = GoogleSearch(params)
+    results = search.get_dict()
+    firmen = []
+
+    for ergebnis in results.get("organic_results", []):
+        title = ergebnis.get("title")
+        link = ergebnis.get("link")
+        if title and link:
+            firmen.append(f"{title} → {link}")
+
+    return firmen
+
+def sende_email(betreff, text):
+    nachricht = MIMEMultipart()
+    nachricht["From"] = ABSENDER
+    nachricht["To"] = EMPFÄNGER
+    nachricht["Subject"] = betreff
+
+    body = f"""Sehr geehrte Damen und Herren,
 
 mein Name ist Justin James, Geschäftsführer der James Fuse & Beyond GmbH mit Sitz in Königstein im Taunus. Wir sind spezialisiert auf die Lieferung von Industriesicherungen der Marke Eaton Bussmann. Durch die direkte Zusammenarbeit mit dem Hersteller können wir zertifizierte Qualität, schnelle Reaktionszeiten und sehr attraktive Konditionen bieten.
 
@@ -37,56 +67,43 @@ Ich würde mich freuen, mich als potenzieller Lieferant bei Ihnen vorstellen zu 
 
 Vielen Dank für Ihre Zeit und freundliche Grüße an Ihr Team.
 
-Mit freundlichen Grüßen,
+Mit freundlichen Grüßen
 
 Justin James
-Managing Director | James Fuse & Beyond GmbH
+James Fuse & Beyond GmbH
 Georg-Pingler-Straße 15
-61462 Königstein im Taunus, Germany
+61462 Königstein im Taunus
 Phone: +49 6174 9699645
 Email: info@james-fuse.de
 Website: www.james-fuse.de
+
+---
+
+Neue potenzielle Leads:
+{text}
 """
 
-def suche_leads():
-    print("\U0001F50D Suche nach Leads läuft...")
-    ergebnisse = []
-    for begriff in SUCHBEGRIFFE:
-        print(f"🔍 Suche: {begriff}")
-        params = {
-            "engine": "google",
-            "q": begriff,
-            "location": "Germany",
-            "hl": "de",
-            "gl": "de",
-            "api_key": os.getenv("SERPAPI_API_KEY")
-        }
-        suche = GoogleSearch(params)
-        result = suche.get_dict()
-        if "organic_results" in result:
-            for eintrag in result["organic_results"][:3]:
-                ergebnisse.append(f"Gefundene Firma bei Suche nach '{begriff}': {eintrag.get('title')} - {eintrag.get('link')}")
-    return ergebnisse
+    nachricht.attach(MIMEText(body, "plain"))
 
-def sende_email(betreff, inhalt_zeilen):
-    print("\U0001F4E7 Sende E-Mail...")
-    nachricht = MIMEMultipart()
-    nachricht["From"] = ABSENDER
-    nachricht["To"] = EMPFÄNGER
-    nachricht["Subject"] = betreff
-
-    text = EMAIL_TEXT + "\n---\nNeue potenzielle Leads:\n" + "\n".join(inhalt_zeilen)
-    nachricht.attach(MIMEText(text, "plain"))
-
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(ABSENDER, PASSWORT)
-    server.sendmail(ABSENDER, EMPFÄNGER, nachricht.as_string())
-    server.quit()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(ABSENDER, PASSWORT)
+        server.sendmail(ABSENDER, EMPFÄNGER, nachricht.as_string())
 
 def main():
-    ergebnisse = suche_leads()
-    sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
+    print("🔍 Suche nach Leads läuft...")
+    alle_firmen = []
+    for begriff in SUCHBEGRIFFE:
+        print(f"🔍 Suche: {begriff}")
+        firmen = finde_leads(begriff)
+        for eintrag in firmen:
+            alle_firmen.append(f"Gefundene Firma bei Suche nach '{begriff}':\n{eintrag}\n")
+
+    if alle_firmen:
+        ergebnisse = "\n".join(alle_firmen)
+        print("📧 Sende E-Mail...")
+        sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
+    else:
+        print("❗ Keine neuen Ergebnisse gefunden.")
 
 if __name__ == "__main__":
     main()
