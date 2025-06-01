@@ -1,18 +1,14 @@
 import os
 import smtplib
-import requests
-from bs4 import BeautifulSoup
-import serpapi
+from serpapi import GoogleSearch
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# Umgebungsvariablen
 ABSENDER = "mj.mix888@gmail.com"
 EMPFÄNGER = "info@james-fuse.de"
 PASSWORT = os.getenv("EMAIL_PASSWORD")
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 
-# Suchbegriffe
 SUCHBEGRIFFE = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
@@ -37,7 +33,7 @@ def finde_leads(suchbegriff):
         "gl": "de",
         "api_key": SERPAPI_KEY
     }
-    search = serpapi.search.GoogleSearch(params)
+    search = GoogleSearch(params)
     results = search.get_dict()
     firmen = []
 
@@ -69,12 +65,12 @@ Vielen Dank für Ihre Zeit und freundliche Grüße an Ihr Team.
 
 Mit freundlichen Grüßen
 
-Justin James
-James Fuse & Beyond GmbH
-Georg-Pingler-Straße 15
-61462 Königstein im Taunus
-Phone: +49 6174 9699645
-Email: info@james-fuse.de
+Justin James  
+James Fuse & Beyond GmbH  
+Georg-Pingler-Straße 15  
+61462 Königstein im Taunus  
+Phone: +49 6174 9699645  
+Email: info@james-fuse.de  
 Website: www.james-fuse.de
 
 ---
