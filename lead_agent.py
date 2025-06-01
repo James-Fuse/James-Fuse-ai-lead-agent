@@ -2,7 +2,7 @@ import os
 import smtplib
 import requests
 from bs4 import BeautifulSoup
-from serpapi import GoogleSearch
+import serpapi
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -37,7 +37,7 @@ def finde_leads(suchbegriff):
         "gl": "de",
         "api_key": SERPAPI_KEY
     }
-    search = GoogleSearch(params)
+    search = serpapi.search.GoogleSearch(params)
     results = search.get_dict()
     firmen = []
 
