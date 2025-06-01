@@ -1,12 +1,14 @@
 import smtplib
-import ssl
 import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
+import time
 
-# Suchbegriffe
-suchbegriffe = [
+ABSENDER = "mj.mix888@gmail.com"
+EMPFAENGER = "info@james-fuse.de"
+PASSWORT = os.getenv("EMAIL_PASSWORD")
+
+SUCHBEGRIFFE = [
     "Sicherung kaufen",
     "Class CC Sicherung gesucht",
     "Sicherung gesucht Steuerung",
@@ -21,43 +23,41 @@ suchbegriffe = [
     "Sicherung defekt Austausch"
 ]
 
-# Beispielergebnisse (diese sollten vom Such-Agenten ersetzt werden)
-ergebnisse = "".join([f"\n🔍 {begriff}\n➡️ https://beispiel-url.de/{begriff.replace(' ', '-')}" for begriff in suchbegriffe])
+def finde_fake_leads(suchbegriff):
+    print(f"🔍 Suche: {suchbegriff}")
+    return [f"https://example.com/{suchbegriff.replace(' ', '_')}"]
 
-# E-Mail-Konfiguration
-ABSENDER = "mj.mix888@gmail.com"  # Dein Gmail-Konto
-EMPFÄNGER = "info@james-fuse.de"   # Wohin die Leads sollen
-BETREFF = "Neue Leads: Firmen mit Sicherungsbedarf"
-PASSWORT = os.getenv("EMAIL_PASSWORD")  # App-spezifisches Passwort in GitHub Secrets speichern
+def sende_email(betreff, inhalt_links):
+    print("📧 Sende E-Mail...")
 
-# E-Mail-Nachricht erstellen
-def sende_email(betreff, text):
     nachricht = MIMEMultipart()
     nachricht["From"] = ABSENDER
-    nachricht["To"] = EMPFÄNGER
+    nachricht["To"] = EMPFAENGER
     nachricht["Subject"] = betreff
 
-    body = f"""
-Hallo Justin,
+    text = "Hier sind neue potenzielle Kunden:\n\n"
+    for kategorie, links in inhalt_links.items():
+        text += f"🔍 {kategorie}\n"
+        for link in links:
+            text += f"➡️ {link}\n"
+        text += "\n"
 
-hier sind die neuen Suchergebnisse von {datetime.now().strftime('%d.%m.%Y %H:%M')}:
-{text}
+    nachricht.attach(MIMEText(text, "plain"))
 
-Viele Grüße,
-Dein Lead-Agent
-"""
-    nachricht.attach(MIMEText(body, "plain"))
-
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
         server.login(ABSENDER, PASSWORT)
-        server.sendmail(ABSENDER, EMPFÃNGER, nachricht.as_string())
+        server.sendmail(ABSENDER, EMPFAENGER, nachricht.as_string())
+        server.quit()
+        print("✅ E-Mail erfolgreich gesendet.")
 
-# Hauptfunktion
 def main():
     print("🔍 Suche nach Leads läuft...")
-    print("📧 Sende E-Mail...")
-    sende_email(BETREFF, ergebnisse)
+    ergebnisse = {}
+    for begriff in SUCHBEGRIFFE:
+        ergebnisse[begriff] = finde_fake_leads(begriff)
+
+    sende_email("Neue Leads: Firmen mit Sicherungsbedarf", ergebnisse)
 
 if __name__ == "__main__":
     main()
