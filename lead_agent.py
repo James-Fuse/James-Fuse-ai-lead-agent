@@ -8,36 +8,33 @@ from email.mime.multipart import MIMEMultipart
 # === KONFIGURATION ===
 ABSENDER = "mj.mix888@gmail.com"
 EMPFÄNGER = "info@james-fuse.de"
-PASSWORT = "dein_app_passwort_hier"  # App-Passwort von Gmail (z. B. dndg cizt plii mvtm)
+PASSWORT = "dndg cizt plii mvtm"  # App-Passwort von Gmail
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
-# === SUCHBEGRIFFE ===
-KEYWORDS = [
-    "neu gegründete GmbH Elektrotechnik site:northdata.de",
-    "neueintragung Automatisierung site:handelsregister.de",
-    "Gründung Schaltschrankbau site:opencorporates.com",
-    "Firmengründung SPS Steuerung site:unternehmensregister.de"
-]
-
 # === FUNKTIONEN ===
-def finde_neue_firmen():
-    gefundene_firmen = []
-    headers = {"User-Agent": "Mozilla/5.0"}
+def finde_neugruendungen():
+    suchbegriffe = [
+        "neu gegründete GmbH Elektrotechnik site:northdata.de",
+        "neueintragung Automatisierung site:handelsregister.de",
+        "Gründung Schaltschrankbau site:opencorporates.com",
+        "Firmengründung SPS Steuerung site:unternehmensregister.de"
+    ]
+    gefundene = []
 
-    for begriff in KEYWORDS:
-        print(f"🔍 Suche: {begriff}")
-        url = f"https://www.google.com/search?q={begriff}"
-        response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        for result in soup.select("div.g"):
-            link = result.find("a")
-            titel = result.find("h3")
-            if link and titel:
-                gefundene_firmen.append(f"{titel.text} — {link['href']}")
-
-    return gefundene_firmen
+    for begriff in suchbegriffe:
+        print("🔍 Suche:", begriff)
+        try:
+            response = requests.get(f"https://www.google.com/search?q={begriff}", headers={"User-Agent": "Mozilla/5.0"})
+            soup = BeautifulSoup(response.text, "html.parser")
+            treffer = soup.select("div.g h3")
+            for t in treffer:
+                titel = t.get_text()
+                if titel not in gefundene:
+                    gefundene.append(titel)
+        except Exception as e:
+            gefundene.append(f"Fehler bei Suche nach '{begriff}': {e}")
+    return gefundene
 
 def sende_email(betreff, inhalt):
     print("📧 Sende E-Mail...")
@@ -47,23 +44,27 @@ def sende_email(betreff, inhalt):
     msg["Subject"] = betreff
 
     msg.attach(MIMEText(inhalt, "plain"))
+
     server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
     server.starttls()
     server.login(ABSENDER, PASSWORT)
     server.send_message(msg)
     server.quit()
 
+# === HAUPTFUNKTION ===
 def main():
     print("🚀 Starte Suche nach Neugründungen...")
-    firmen = finde_neue_firmen()
-    if not firmen:
-        text = "Heute wurden keine neuen relevanten Gründungen gefunden."
+    daten = finde_neugruendungen()
+
+    if not daten:
+        text = "Leider wurden heute keine neuen Einträge gefunden."
     else:
-        text = "Neue potenzielle Firmen im Bereich Elektrotechnik/Automatisierung:\n\n"
-        for eintrag in firmen:
-            text += f"- {eintrag}\n"
+        text = "Hier sind die gefundenen Neugründungen im Bereich Elektrotechnik und Automatisierung:\n\n"
+        for eintrag in daten:
+            text += f"– {eintrag}\n"
 
     sende_email("Neueintragungen: Elektrotechnik & Automatisierung", text)
 
+# === AUSFÜHRUNG ===
 if __name__ == "__main__":
     main()
