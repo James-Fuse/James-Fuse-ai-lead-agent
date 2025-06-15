@@ -1,70 +1,69 @@
-import smtplib
 import requests
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from bs4 import BeautifulSoup
 from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
-ABSENDER = "mjmix888@gmail.com"
-PASSWORT = "dndg cizt plii mvtm"
+# === KONFIGURATION ===
+ABSENDER = "mj.mix888@gmail.com"
 EMPFÄNGER = "info@james-fuse.de"
+PASSWORT = "dein_app_passwort_hier"  # App-Passwort von Gmail (z. B. dndg cizt plii mvtm)
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
 
-SUCHBEGRIFFE = [
-    "Sicherung kaufen site:wlw.de",
-    "Class CC Sicherung gesucht site:ebay.de",
-    "Industriesicherung Bedarf site:kleinanzeigen.de",
-    "UL Sicherung gesucht site:technikboerse.com",
-    "Sicherungsbedarf site:industrystock.de",
-    "Sicherung gesucht site:mikrocontroller.net",
-    "Sicherung site:elektrotechnik-forum.de",
-    "Sicherung site:bund.de",
-    "Sicherung site:ted.europa.eu",
-    "Sicherung site:northdata.de"
+# === SUCHBEGRIFFE ===
+KEYWORDS = [
+    "neu gegründete GmbH Elektrotechnik site:northdata.de",
+    "neueintragung Automatisierung site:handelsregister.de",
+    "Gründung Schaltschrankbau site:opencorporates.com",
+    "Firmengründung SPS Steuerung site:unternehmensregister.de"
 ]
 
-HEADERS = {"User-Agent": "Mozilla/5.0"}
+# === FUNKTIONEN ===
+def finde_neue_firmen():
+    gefundene_firmen = []
+    headers = {"User-Agent": "Mozilla/5.0"}
 
+    for begriff in KEYWORDS:
+        print(f"🔍 Suche: {begriff}")
+        url = f"https://www.google.com/search?q={begriff}"
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
 
-def finde_leads():
-    leads = []
-    for begriff in SUCHBEGRIFFE:
-        try:
-            response = requests.get(f"https://www.google.com/search?q={begriff}", headers=HEADERS)
-            soup = BeautifulSoup(response.text, "html.parser")
-            for g in soup.find_all('div', class_='tF2Cxc'):
-                titel = g.find('h3').text if g.find('h3') else "Kein Titel"
-                link = g.find('a')['href'] if g.find('a') else "Kein Link"
-                beschreibung = g.find('div', class_='VwiC3b').text if g.find('div', class_='VwiC3b') else "Keine Beschreibung"
-                leads.append({"titel": titel, "link": link, "beschreibung": beschreibung})
-        except Exception as e:
-            leads.append({"titel": f"Fehler bei {begriff}", "link": "", "beschreibung": str(e)})
-    return leads
+        for result in soup.select("div.g"):
+            link = result.find("a")
+            titel = result.find("h3")
+            if link and titel:
+                gefundene_firmen.append(f"{titel.text} — {link['href']}")
 
+    return gefundene_firmen
 
-def sende_email(leads):
+def sende_email(betreff, inhalt):
+    print("📧 Sende E-Mail...")
     msg = MIMEMultipart()
-    msg['From'] = ABSENDER
-    msg['To'] = EMPFÄNGER
-    msg['Subject'] = f"Neue Leads (Stand: {datetime.now().strftime('%d.%m.%Y %H:%M')})"
+    msg["From"] = ABSENDER
+    msg["To"] = EMPFÄNGER
+    msg["Subject"] = betreff
 
-    html = "<h3>Neue potenzielle Leads:</h3><ul>"
-    for eintrag in leads:
-        html += f"<li><strong>{eintrag['titel']}</strong><br><a href='{eintrag['link']}'>{eintrag['link']}</a><br>{eintrag['beschreibung']}</li><br>"
-    html += "</ul>"
-
-    msg.attach(MIMEText(html, 'html'))
-
-    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-        server.login(ABSENDER, PASSWORT)
-        server.send_message(msg)
-
+    msg.attach(MIMEText(inhalt, "plain"))
+    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+    server.starttls()
+    server.login(ABSENDER, PASSWORT)
+    server.send_message(msg)
+    server.quit()
 
 def main():
-    print("🔍 Suche nach echten Leads läuft...")
-    leads = finde_leads()
-    print("📧 Sende E-Mail...")
-    sende_email(leads)
+    print("🚀 Starte Suche nach Neugründungen...")
+    firmen = finde_neue_firmen()
+    if not firmen:
+        text = "Heute wurden keine neuen relevanten Gründungen gefunden."
+    else:
+        text = "Neue potenzielle Firmen im Bereich Elektrotechnik/Automatisierung:\n\n"
+        for eintrag in firmen:
+            text += f"- {eintrag}\n"
 
+    sende_email("Neueintragungen: Elektrotechnik & Automatisierung", text)
 
 if __name__ == "__main__":
     main()
