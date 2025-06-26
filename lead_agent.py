@@ -7,43 +7,46 @@ from email.mime.multipart import MIMEMultipart
 
 # === KONFIGURATION ===
 ABSENDER = "mj.mix888@gmail.com"
+PASSWORT = "dein_app_passwort"  # z. B. dndg cizt plii mvtm
 EMPFÄNGER = "info@james-fuse.de"
-PASSWORT = "dndg cizt plii mvtm"  # App-Passwort von Gmail
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
-# === FUNKTIONEN ===
-def finde_neugruendungen():
-    suchbegriffe = [
-        "neu gegründete GmbH Elektrotechnik site:northdata.de",
-        "neueintragung Automatisierung site:handelsregister.de",
-        "Gründung Schaltschrankbau site:opencorporates.com",
-        "Firmengründung SPS Steuerung site:unternehmensregister.de"
-    ]
-    gefundene = []
+SUCHBEGRIFFE = [
+    "Bussmann Sicherung", "Schmelzsicherung", "FNQ-R", "LP-CC", "KTK-R", "FNM-15", "Industriesicherung"
+]
 
-    for begriff in suchbegriffe:
-        print("🔍 Suche:", begriff)
-        try:
-            response = requests.get(f"https://www.google.com/search?q={begriff}", headers={"User-Agent": "Mozilla/5.0"})
-            soup = BeautifulSoup(response.text, "html.parser")
-            treffer = soup.select("div.g h3")
-            for t in treffer:
-                titel = t.get_text()
-                if titel not in gefundene:
-                    gefundene.append(titel)
-        except Exception as e:
-            gefundene.append(f"Fehler bei Suche nach '{begriff}': {e}")
-    return gefundene
+# === FUNKTION: TED.europa.eu ===
+def scrape_ted():
+    text = "📄 Ergebnisse von TED.europa.eu:\n"
+    for begriff in SUCHBEGRIFFE:
+        url = f"https://ted.europa.eu/TED/search/searchResult.xhtml?searchScope=NOTICES&locale=de&QueryText={begriff}"
+        text += f"- {begriff}: {url}\n"
+    return text
 
+# === FUNKTION: bund.de ===
+def scrape_bund():
+    text = "\n📄 Ergebnisse von bund.de:\n"
+    for begriff in SUCHBEGRIFFE:
+        url = f"https://www.bund.de/DE/Suche/Ausschreibungen/ausschreibungen_node.html?nn=4641482&q={begriff}"
+        text += f"- {begriff}: {url}\n"
+    return text
+
+# === FUNKTION: eBay Kleinanzeigen Suche ===
+def scrape_ebay():
+    text = "\n📄 Ergebnisse von eBay Kleinanzeigen:\n"
+    for begriff in SUCHBEGRIFFE:
+        url = f"https://www.kleinanzeigen.de/s-anzeige/{begriff.replace(' ', '-')}/k0"
+        text += f"- {begriff}: {url}\n"
+    return text
+
+# === FUNKTION: E-Mail senden ===
 def sende_email(betreff, inhalt):
-    print("📧 Sende E-Mail...")
     msg = MIMEMultipart()
-    msg["From"] = ABSENDER
-    msg["To"] = EMPFÄNGER
-    msg["Subject"] = betreff
-
-    msg.attach(MIMEText(inhalt, "plain"))
+    msg['From'] = ABSENDER
+    msg['To'] = EMPFÄNGER
+    msg['Subject'] = betreff
+    msg.attach(MIMEText(inhalt, 'plain'))
 
     server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
     server.starttls()
@@ -51,20 +54,19 @@ def sende_email(betreff, inhalt):
     server.send_message(msg)
     server.quit()
 
-# === HAUPTFUNKTION ===
+# === MAIN ===
 def main():
-    print("🚀 Starte Suche nach Neugründungen...")
-    daten = finde_neugruendungen()
+    print("🚀 Starte kombinierte Lead-Suche...")
 
-    if not daten:
-        text = "Leider wurden heute keine neuen Einträge gefunden."
-    else:
-        text = "Hier sind die gefundenen Neugründungen im Bereich Elektrotechnik und Automatisierung:\n\n"
-        for eintrag in daten:
-            text += f"– {eintrag}\n"
+    ted_text = scrape_ted()
+    bund_text = scrape_bund()
+    ebay_text = scrape_ebay()
 
-    sende_email("Neueintragungen: Elektrotechnik & Automatisierung", text)
+    full_report = ted_text + bund_text + ebay_text
 
-# === AUSFÜHRUNG ===
+    print("📧 Sende E-Mail...")
+    sende_email("Täglicher Lead-Report: Sicherungen", full_report)
+    print("✅ Fertig!")
+
 if __name__ == "__main__":
     main()
