@@ -25,5 +25,4 @@ jobs:
 
       - name: Run lead agent
         run: |
-          cd lead_agent
-          python main.py
+          python lead_agent/main.py
