@@ -1,21 +1,37 @@
-from ted_scraper import search_ted
-from bund_scraper import search_bund
-from kleinanzeigen_checker import search_kleinanzeigen
-from website_crawler import search_industrystock
-from email_reporter import send_email
+import os
+from datetime import datetime
+from typing import List, Dict
+
+from .storage import write_csv
+from .emailer import send_email
+
+def collect_leads() -> List[Dict]:
+    """
+    Dummy-Sammler: hier kannst du später Bund, TED, eBay usw. einbauen.
+    Aktuell gibt er nur einen Test-Lead zurück.
+    """
+    leads = [
+        {
+            "company": "Testfirma GmbH",
+            "website": "https://www.beispiel.de",
+            "contact_name": "Max Mustermann",
+            "email": "info@beispiel.de",
+            "phone": "+49 123 456789",
+            "source": "Demo",
+            "note": "Dies ist nur ein Testeintrag"
+        }
+    ]
+    return leads
 
 def main():
-    ted_results = search_ted()
-    bund_results = search_bund()
-    ebay_results = search_kleinanzeigen()
-    web_results = search_industrystock()
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+    recipients_env = os.getenv("RECIPIENTS", "info@james-fuse.de")
+    recipients = [x.strip() for x in recipients_env.split(",") if x.strip()]
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
 
-    all_leads = ted_results + bund_results + ebay_results + web_results
+    # Leads sammeln
+    leads = collect_leads()
 
-    if all_leads:
-        send_email(all_leads)
-    else:
-        print("Keine Leads gefunden.")
-
-if __name__ == "__main__":
-    main()
+    # CSV-Datei erzeuge
